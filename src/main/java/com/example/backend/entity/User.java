@@ -2,6 +2,7 @@ package com.example.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -35,12 +36,15 @@ public class User {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "societe_id")
-    private Societe societe; // Null when role = COMPTABLE
+    private Societe societe;
 
     @Column(nullable = false)
-    private final boolean active = true;
+    @Builder.Default
+    private boolean active = true;
 
-    private final LocalDateTime createdAt = LocalDateTime.now();
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 
     public enum Role {
         SOCIETE,

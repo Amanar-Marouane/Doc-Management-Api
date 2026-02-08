@@ -2,6 +2,7 @@ package com.example.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
@@ -11,7 +12,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Societe {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,7 +23,7 @@ public class Societe {
     @Column(nullable = false, unique = true, length = 15)
     private String ice;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 500)
     private String adresse;
 
     @Column(nullable = false, length = 20)
@@ -32,8 +32,7 @@ public class Societe {
     @Column(nullable = false)
     private String emailContact;
 
-    private final LocalDateTime createdAt = LocalDateTime.now();
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 }
-
-
-

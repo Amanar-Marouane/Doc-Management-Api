@@ -1,0 +1,9 @@
+CREATE TABLE societes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    raison_sociale VARCHAR(255) NOT NULL,
+    ice VARCHAR(15) NOT NULL UNIQUE,
+    adresse VARCHAR(500) NOT NULL,
+    telephone VARCHAR(20) NOT NULL,
+    email_contact VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
