@@ -1,0 +1,63 @@
+### Variables
+@baseUrl = http://localhost:8080/api
+@adminEmail = admin@example.com
+@adminPassword = password123
+@comptableEmail = comptable@example.com
+@comptablePassword = password123
+@societeEmail = societe@example.com
+@societePassword = password123
+
+### Login as Admin
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+@adminToken = {{loginAdmin.response.body.token}}
+
+### Login as Comptable
+# @name loginComptable
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{comptableEmail}}",
+  "password": "{{comptablePassword}}"
+}
+
+###
+@comptableToken = {{loginComptable.response.body.token}}
+
+### Login as Societe User
+# @name loginSociete
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{societeEmail}}",
+  "password": "{{societePassword}}"
+}
+
+###
+@societeToken = {{loginSociete.response.body.token}}
+
+### Login with Invalid Credentials
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "wrong@example.com",
+  "password": "wrongpassword"
+}
+
+### Logout
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{adminToken}}
+
+### Logout without token (should fail)
+POST {{baseUrl}}/auth/logout

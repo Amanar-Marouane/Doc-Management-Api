@@ -1,0 +1,9 @@
+### Variables
+@baseUrl = http://localhost:8080/api
+
+### Ping the API
+GET {{baseUrl}}/ping
+
+### Ping with Authorization (testing if endpoint is public)
+GET {{baseUrl}}/ping
+Authorization: Bearer some-token-here

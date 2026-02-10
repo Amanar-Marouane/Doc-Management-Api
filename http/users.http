@@ -1,0 +1,266 @@
+### Variables
+@baseUrl = http://localhost:8080/api/v1
+@adminToken = your-admin-token-here
+@userToken = your-user-token-here
+
+### ==================== SELF ENDPOINTS ====================
+
+### Get Current User Profile
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{adminToken}}
+
+### Update Current User Profile
+PUT {{baseUrl}}/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Updated Name",
+  "email": "newemail@example.com",
+  "password": "newpassword123"
+}
+
+### Update Current User - Only Name
+PUT {{baseUrl}}/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Just Name Change"
+}
+
+### Update Current User - Only Password
+PUT {{baseUrl}}/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "password": "mynewpassword456"
+}
+
+### ==================== ADMIN - CREATE USERS ====================
+
+### Create Comptable (Accountant)
+# @name createComptable
+POST {{baseUrl}}/users/comptable
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "comptable1@example.com",
+  "password": "password123",
+  "fullName": "Jean Dupont"
+}
+
+###
+@comptableId = {{createComptable.response.body.id}}
+
+### Create Societe User
+# @name createSocieteUser
+POST {{baseUrl}}/users/societe
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "client1@example.com",
+  "password": "password123",
+  "fullName": "Marie Martin",
+  "societeId": 1
+}
+
+###
+@societeUserId = {{createSocieteUser.response.body.id}}
+
+### ==================== ADMIN - LIST USERS ====================
+
+### Get All Comptables
+GET {{baseUrl}}/users/comptables
+Authorization: Bearer {{adminToken}}
+
+### Get All Societe Users
+GET {{baseUrl}}/users/societes
+Authorization: Bearer {{adminToken}}
+
+### Get All Users (with pagination)
+GET {{baseUrl}}/users?page=0&size=10&sortBy=createdAt
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Filter by Role (COMPTABLE)
+GET {{baseUrl}}/users?role=COMPTABLE&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Filter by Role (SOCIETE)
+GET {{baseUrl}}/users?role=SOCIETE&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Filter by Societe ID
+GET {{baseUrl}}/users?societeId=1&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Filter by Active Status
+GET {{baseUrl}}/users?active=true&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Search by Name or Email
+GET {{baseUrl}}/users?search=jean&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Multiple Filters
+GET {{baseUrl}}/users?role=COMPTABLE&active=true&search=dupont&page=0&size=10&sortBy=fullName
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Inactive Users Only
+GET {{baseUrl}}/users?active=false&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get Users - Page 2
+GET {{baseUrl}}/users?page=1&size=5
+Authorization: Bearer {{adminToken}}
+
+### ==================== ADMIN - GET USER BY ID ====================
+
+### Get User by ID
+GET {{baseUrl}}/users/{{comptableId}}
+Authorization: Bearer {{adminToken}}
+
+### Get User by ID (Non-existent)
+GET {{baseUrl}}/users/999999
+Authorization: Bearer {{adminToken}}
+
+### ==================== ADMIN - UPDATE USER ====================
+
+### Update User Basic Info (Admin or Self)
+PUT {{baseUrl}}/users/{{comptableId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Jean-Pierre Dupont",
+  "email": "jp.dupont@example.com"
+}
+
+### Update User Password
+PUT {{baseUrl}}/users/{{comptableId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "password": "newSecurePassword123"
+}
+
+### Admin Update - Change Everything
+PUT {{baseUrl}}/users/{{societeUserId}}/admin
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Updated Full Name",
+  "email": "updated@example.com",
+  "password": "newpassword123",
+  "role": "COMPTABLE",
+  "societeId": null,
+  "active": true
+}
+
+### Admin Update - Change Role from SOCIETE to COMPTABLE
+PUT {{baseUrl}}/users/{{societeUserId}}/admin
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "role": "COMPTABLE"
+}
+
+### Admin Update - Assign Societe to User
+PUT {{baseUrl}}/users/{{comptableId}}/admin
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "role": "SOCIETE",
+  "societeId": 1
+}
+
+### Admin Update - Deactivate User
+PUT {{baseUrl}}/users/{{comptableId}}/admin
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+### ==================== ADMIN - USER STATUS ====================
+
+### Deactivate User
+PATCH {{baseUrl}}/users/{{comptableId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+### Activate User
+PATCH {{baseUrl}}/users/{{comptableId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "active": true
+}
+
+### ==================== ADMIN - DELETE USER ====================
+
+### Delete User
+DELETE {{baseUrl}}/users/{{comptableId}}
+Authorization: Bearer {{adminToken}}
+
+### Delete User (Non-existent)
+DELETE {{baseUrl}}/users/999999
+Authorization: Bearer {{adminToken}}
+
+### Try to Delete Admin User (should fail)
+DELETE {{baseUrl}}/users/1
+Authorization: Bearer {{adminToken}}
+
+### ==================== ERROR CASES ====================
+
+### Create User without Admin Token (should fail)
+POST {{baseUrl}}/users/comptable
+Content-Type: application/json
+
+{
+  "email": "unauthorized@example.com",
+  "password": "password123",
+  "fullName": "Unauthorized User"
+}
+
+### Update Another User without Permission (should fail)
+PUT {{baseUrl}}/users/1
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Trying to Hack"
+}
+
+### Access Admin Endpoint with User Token (should fail)
+PUT {{baseUrl}}/users/1/admin
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "active": false
+}
+
+### Create User with Duplicate Email
+POST {{baseUrl}}/users/comptable
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "email": "comptable1@example.com",
+  "password": "password123",
+  "fullName": "Duplicate Email Test"
+}
