@@ -1,6 +1,5 @@
 package com.example.backend.util;
 
-import com.example.backend.entity.User;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;

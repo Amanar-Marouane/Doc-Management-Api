@@ -1,7 +1,6 @@
 package com.example.backend.dto;
 
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Getter
@@ -16,5 +15,6 @@ public class SocieteDTO {
     private String adresse;
     private String telephone;
     private String emailContact;
+    private UserDTO accountant;
     private LocalDateTime createdAt;
 }

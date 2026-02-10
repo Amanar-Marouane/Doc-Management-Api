@@ -1,11 +1,9 @@
 ### Variables
 @baseUrl = http://localhost:8080/api
-@adminEmail = admin@example.com
-@adminPassword = password123
+@adminEmail = admin@gmail.com
+@adminPassword = password
 @comptableEmail = comptable@example.com
 @comptablePassword = password123
-@societeEmail = societe@example.com
-@societePassword = password123
 
 ### Login as Admin
 # @name loginAdmin
@@ -32,19 +30,6 @@ Content-Type: application/json
 
 ###
 @comptableToken = {{loginComptable.response.body.token}}
-
-### Login as Societe User
-# @name loginSociete
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "email": "{{societeEmail}}",
-  "password": "{{societePassword}}"
-}
-
-###
-@societeToken = {{loginSociete.response.body.token}}
 
 ### Login with Invalid Credentials
 POST {{baseUrl}}/auth/login

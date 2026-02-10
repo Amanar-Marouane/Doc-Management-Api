@@ -1,0 +1,146 @@
+### Variables
+@baseUrl = http://localhost:8080/api/v1
+@adminToken = your-admin-token-here
+
+### ==================== CREATE SOCIETE ====================
+
+### Create Societe
+# @name createSociete
+POST {{baseUrl}}/societes
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "raisonSociale": "Entreprise ABC SARL",
+  "ice": "001234567890001",
+  "adresse": "123 Avenue Mohammed V, Casablanca",
+  "telephone": "+212 522 123456",
+  "emailContact": "contact@abc-sarl.ma"
+}
+
+###
+@societeId = {{createSociete.response.body.id}}
+
+### Create Another Societe
+POST {{baseUrl}}/societes
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "raisonSociale": "TechCorp Services",
+  "ice": "001234567890002",
+  "adresse": "456 Boulevard Zerktouni, Casablanca",
+  "telephone": "+212 522 987654",
+  "emailContact": "info@techcorp.ma"
+}
+
+### Create Societe - Duplicate ICE (should fail)
+POST {{baseUrl}}/societes
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "raisonSociale": "Duplicate Company",
+  "ice": "001234567890001",
+  "adresse": "789 Rue Test",
+  "telephone": "+212 522 111222",
+  "emailContact": "duplicate@test.ma"
+}
+
+### ==================== GET SOCIETES ====================
+
+### Get All Societes
+GET {{baseUrl}}/societes
+Authorization: Bearer {{adminToken}}
+
+### Get Societe by ID
+GET {{baseUrl}}/societes/{{societeId}}
+Authorization: Bearer {{adminToken}}
+
+### Get Societe Compliance Overview
+GET {{baseUrl}}/societes/{{societeId}}/compliance
+Authorization: Bearer {{adminToken}}
+
+### ==================== ASSIGN ACCOUNTANT ====================
+
+### Assign Accountant to Societe
+# @name assignAccountant
+POST {{baseUrl}}/societes/{{societeId}}/accountant/3
+Authorization: Bearer {{adminToken}}
+
+###
+@accountantId = 3
+
+### Update Accountant for Societe
+PUT {{baseUrl}}/societes/{{societeId}}/accountant/4
+Authorization: Bearer {{adminToken}}
+
+### Remove Accountant from Societe
+DELETE {{baseUrl}}/societes/{{societeId}}/accountant
+Authorization: Bearer {{adminToken}}
+
+### ==================== GET SOCIETIES BY ACCOUNTANT ====================
+
+### Get Societies by Accountant ID
+GET {{baseUrl}}/societes/accountant/3
+Authorization: Bearer {{adminToken}}
+
+### ==================== UPDATE SOCIETE ====================
+
+### Update Societe
+PUT {{baseUrl}}/societes/{{societeId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "raisonSociale": "Entreprise ABC SARL - Updated",
+  "ice": "001234567890001",
+  "adresse": "123 Avenue Mohammed V, Nouvelle adresse, Casablanca",
+  "telephone": "+212 522 123457",
+  "emailContact": "new-contact@abc-sarl.ma"
+}
+
+### Update Societe - Partial Update
+PUT {{baseUrl}}/societes/{{societeId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "raisonSociale": "ABC Company Updated Again",
+  "ice": "001234567890001",
+  "adresse": "123 Avenue Mohammed V, Casablanca",
+  "telephone": "+212 522 999888",
+  "emailContact": "contact@abc-sarl.ma"
+}
+
+### ==================== DELETE SOCIETE ====================
+
+### Delete Societe
+DELETE {{baseUrl}}/societes/{{societeId}}
+Authorization: Bearer {{adminToken}}
+
+### Delete Societe (Non-existent)
+DELETE {{baseUrl}}/societes/999999
+Authorization: Bearer {{adminToken}}
+
+### ==================== ERROR CASES ====================
+
+### Create Societe without Token (should fail)
+POST {{baseUrl}}/societes
+Content-Type: application/json
+
+{
+  "raisonSociale": "Unauthorized Company",
+  "ice": "001234567890999",
+  "adresse": "Test Address",
+  "telephone": "+212 522 000000",
+  "emailContact": "test@test.ma"
+}
+
+### Assign non-COMPTABLE user as accountant (should fail)
+POST {{baseUrl}}/societes/1/accountant/1
+Authorization: Bearer {{adminToken}}
+
+### Assign accountant already linked to another societe (should fail)
+POST {{baseUrl}}/societes/2/accountant/3
+Authorization: Bearer {{adminToken}}

@@ -36,37 +36,20 @@ public class UserService {
             throw new RuntimeException("Email already exists");
         }
 
+        if (request.getSocieteId() != null) {
+            Societe societe = societeRepository.findById(request.getSocieteId())
+                    .orElseThrow(() -> new RuntimeException("Societe not found"));
+            if (societe.getAccountant() != null) {
+                throw new RuntimeException("This Societe already has an assigned accountant");
+            }
+        }
+
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .role(User.Role.COMPTABLE)
-                .societe(null)
-                .build();
-
-        User saved = userRepository.save(user);
-        return toDTO(saved);
-    }
-
-    @Transactional
-    public UserDTO createSocieteUser(CreateSocieteUserDTO request) {
-        if (!SecurityUtils.isAdmin()) {
-            throw new RuntimeException("Only admins can create users");
-        }
-
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
-        }
-
-        Societe societe = societeRepository.findById(request.getSocieteId())
-                .orElseThrow(() -> new RuntimeException("Societe not found"));
-
-        User user = User.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .role(User.Role.SOCIETE)
-                .societe(societe)
+                .societe(request.getSocieteId() != null ? societeRepository.findById(request.getSocieteId()).orElse(null) : null)
                 .build();
 
         User saved = userRepository.save(user);
@@ -76,13 +59,6 @@ public class UserService {
     @Transactional(readOnly = true)
     public List<UserDTO> getAllComptables() {
         return userRepository.findByRole(User.Role.COMPTABLE).stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<UserDTO> getAllSocieteUsers() {
-        return userRepository.findByRole(User.Role.SOCIETE).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -133,7 +109,7 @@ public class UserService {
 
         // Check if email is being changed and already exists
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            if (userRepository.existsByEmail(request.getEmail())) {
+            if (userRepository.existsByEmail(request.getEmail()) && !request.getEmail().equals(user.getEmail())) {
                 throw new RuntimeException("Email already exists");
             }
             user.setEmail(request.getEmail());
@@ -178,21 +154,6 @@ public class UserService {
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
-        }
-
-        if (request.getRole() != null) {
-            user.setRole(request.getRole());
-
-            // Handle societe assignment based on role
-            if (request.getRole() == User.Role.SOCIETE) {
-                if (request.getSocieteId() != null) {
-                    Societe societe = societeRepository.findById(request.getSocieteId())
-                            .orElseThrow(() -> new RuntimeException("Societe not found"));
-                    user.setSociete(societe);
-                }
-            } else {
-                user.setSociete(null);
-            }
         }
 
         if (request.getActive() != null) {

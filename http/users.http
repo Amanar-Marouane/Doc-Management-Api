@@ -9,7 +9,7 @@
 GET {{baseUrl}}/users/me
 Authorization: Bearer {{adminToken}}
 
-### Update Current User Profile
+### Update Current User Profile (fullName, email, password)
 PUT {{baseUrl}}/users/me
 Authorization: Bearer {{userToken}}
 Content-Type: application/json
@@ -20,7 +20,7 @@ Content-Type: application/json
   "password": "newpassword123"
 }
 
-### Update Current User - Only Name
+### Update Current User - Name Only
 PUT {{baseUrl}}/users/me
 Authorization: Bearer {{userToken}}
 Content-Type: application/json
@@ -29,7 +29,7 @@ Content-Type: application/json
   "fullName": "Just Name Change"
 }
 
-### Update Current User - Only Password
+### Update Current User - Password Only
 PUT {{baseUrl}}/users/me
 Authorization: Bearer {{userToken}}
 Content-Type: application/json
@@ -40,7 +40,7 @@ Content-Type: application/json
 
 ### ==================== ADMIN - CREATE USERS ====================
 
-### Create Comptable (Accountant)
+### Create Comptable Without Societe
 # @name createComptable
 POST {{baseUrl}}/users/comptable
 Authorization: Bearer {{adminToken}}
@@ -55,30 +55,22 @@ Content-Type: application/json
 ###
 @comptableId = {{createComptable.response.body.id}}
 
-### Create Societe User
-# @name createSocieteUser
-POST {{baseUrl}}/users/societe
+### Create Comptable With Societe Assignment
+POST {{baseUrl}}/users/comptable
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "email": "client1@example.com",
+  "email": "comptable2@example.com",
   "password": "password123",
   "fullName": "Marie Martin",
   "societeId": 1
 }
 
-###
-@societeUserId = {{createSocieteUser.response.body.id}}
-
 ### ==================== ADMIN - LIST USERS ====================
 
 ### Get All Comptables
 GET {{baseUrl}}/users/comptables
-Authorization: Bearer {{adminToken}}
-
-### Get All Societe Users
-GET {{baseUrl}}/users/societes
 Authorization: Bearer {{adminToken}}
 
 ### Get All Users (with pagination)
@@ -87,14 +79,6 @@ Authorization: Bearer {{adminToken}}
 
 ### Get Users - Filter by Role (COMPTABLE)
 GET {{baseUrl}}/users?role=COMPTABLE&page=0&size=10
-Authorization: Bearer {{adminToken}}
-
-### Get Users - Filter by Role (SOCIETE)
-GET {{baseUrl}}/users?role=SOCIETE&page=0&size=10
-Authorization: Bearer {{adminToken}}
-
-### Get Users - Filter by Societe ID
-GET {{baseUrl}}/users?societeId=1&page=0&size=10
 Authorization: Bearer {{adminToken}}
 
 ### Get Users - Filter by Active Status
@@ -109,22 +93,10 @@ Authorization: Bearer {{adminToken}}
 GET {{baseUrl}}/users?role=COMPTABLE&active=true&search=dupont&page=0&size=10&sortBy=fullName
 Authorization: Bearer {{adminToken}}
 
-### Get Users - Inactive Users Only
-GET {{baseUrl}}/users?active=false&page=0&size=10
-Authorization: Bearer {{adminToken}}
-
-### Get Users - Page 2
-GET {{baseUrl}}/users?page=1&size=5
-Authorization: Bearer {{adminToken}}
-
 ### ==================== ADMIN - GET USER BY ID ====================
 
 ### Get User by ID
 GET {{baseUrl}}/users/{{comptableId}}
-Authorization: Bearer {{adminToken}}
-
-### Get User by ID (Non-existent)
-GET {{baseUrl}}/users/999999
 Authorization: Bearer {{adminToken}}
 
 ### ==================== ADMIN - UPDATE USER ====================
@@ -148,40 +120,7 @@ Content-Type: application/json
   "password": "newSecurePassword123"
 }
 
-### Admin Update - Change Everything
-PUT {{baseUrl}}/users/{{societeUserId}}/admin
-Authorization: Bearer {{adminToken}}
-Content-Type: application/json
-
-{
-  "fullName": "Updated Full Name",
-  "email": "updated@example.com",
-  "password": "newpassword123",
-  "role": "COMPTABLE",
-  "societeId": null,
-  "active": true
-}
-
-### Admin Update - Change Role from SOCIETE to COMPTABLE
-PUT {{baseUrl}}/users/{{societeUserId}}/admin
-Authorization: Bearer {{adminToken}}
-Content-Type: application/json
-
-{
-  "role": "COMPTABLE"
-}
-
-### Admin Update - Assign Societe to User
-PUT {{baseUrl}}/users/{{comptableId}}/admin
-Authorization: Bearer {{adminToken}}
-Content-Type: application/json
-
-{
-  "role": "SOCIETE",
-  "societeId": 1
-}
-
-### Admin Update - Deactivate User
+### Admin Update - Change Active Status
 PUT {{baseUrl}}/users/{{comptableId}}/admin
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -216,10 +155,6 @@ Content-Type: application/json
 DELETE {{baseUrl}}/users/{{comptableId}}
 Authorization: Bearer {{adminToken}}
 
-### Delete User (Non-existent)
-DELETE {{baseUrl}}/users/999999
-Authorization: Bearer {{adminToken}}
-
 ### Try to Delete Admin User (should fail)
 DELETE {{baseUrl}}/users/1
 Authorization: Bearer {{adminToken}}
@@ -236,24 +171,6 @@ Content-Type: application/json
   "fullName": "Unauthorized User"
 }
 
-### Update Another User without Permission (should fail)
-PUT {{baseUrl}}/users/1
-Authorization: Bearer {{userToken}}
-Content-Type: application/json
-
-{
-  "fullName": "Trying to Hack"
-}
-
-### Access Admin Endpoint with User Token (should fail)
-PUT {{baseUrl}}/users/1/admin
-Authorization: Bearer {{userToken}}
-Content-Type: application/json
-
-{
-  "active": false
-}
-
 ### Create User with Duplicate Email
 POST {{baseUrl}}/users/comptable
 Authorization: Bearer {{adminToken}}
@@ -263,4 +180,22 @@ Content-Type: application/json
   "email": "comptable1@example.com",
   "password": "password123",
   "fullName": "Duplicate Email Test"
+}
+
+### Update Another User without Permission (should fail)
+PUT {{baseUrl}}/users/1
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Trying to Hack"
+}
+
+### Access Admin Endpoint with Non-Admin Token (should fail)
+PUT {{baseUrl}}/users/1/admin
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "active": false
 }

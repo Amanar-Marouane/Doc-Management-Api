@@ -48,30 +48,12 @@ public class UserController {
     }
 
     /**
-     * Create a new Societe (Client) user - ADMIN ONLY
-     */
-    @PostMapping("/societe")
-    public ResponseEntity<UserDTO> createSocieteUser(@RequestBody CreateSocieteUserDTO request) {
-        UserDTO created = userService.createSocieteUser(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
-    }
-
-    /**
      * Get all Comptables - ADMIN ONLY
      */
     @GetMapping("/comptables")
     public ResponseEntity<List<UserDTO>> getAllComptables() {
         List<UserDTO> comptables = userService.getAllComptables();
         return ResponseEntity.ok(comptables);
-    }
-
-    /**
-     * Get all Societe users - ADMIN ONLY
-     */
-    @GetMapping("/societes")
-    public ResponseEntity<List<UserDTO>> getAllSocieteUsers() {
-        List<UserDTO> societeUsers = userService.getAllSocieteUsers();
-        return ResponseEntity.ok(societeUsers);
     }
 
     /**

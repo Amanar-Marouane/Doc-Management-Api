@@ -47,14 +47,12 @@ public class User {
     private LocalDateTime createdAt;
 
     public enum Role {
-        SOCIETE,
-        COMPTABLE,
+        COMPTABLE, // Accountant
         ADMIN
     }
 
     public Collection<String> getAuthorities() {
         return switch (role) {
-            case SOCIETE -> List.of("ROLE_SOCIETE");
             case COMPTABLE -> List.of("ROLE_COMPTABLE");
             case ADMIN -> List.of("ROLE_ADMIN");
         };

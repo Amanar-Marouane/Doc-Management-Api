@@ -32,6 +32,10 @@ public class Societe {
     @Column(nullable = false)
     private String emailContact;
 
+    @OneToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "accountant_id", nullable = true)
+    private User accountant; // COMPTABLE role user
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
