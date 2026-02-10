@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import com.example.backend.constants.Routes;
 import com.example.backend.contract.JwtContract;
+import com.example.backend.filter.JwtFilter;
 import com.example.backend.filter.LoginFilter;
 import com.example.backend.filter.LogoutAuthFilter;
 import com.example.backend.security.CustomUserDetailsService;
@@ -29,6 +30,7 @@ public class SecurityConfig {
     JwtContract jwtService;
     CustomUserDetailsService userDetailsService;
     JwtBlacklistService jwtBlacklistService;
+    JwtFilter jwtFilter;
 
     @Bean
     public SecurityFilterChain basicAuthSecurityFilterChain(HttpSecurity http,
@@ -49,6 +51,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(loginFilter, UsernamePasswordAuthenticationFilter.class) // Login filter
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class) // JWT filter
                 .addFilterBefore(logoutFilter, UsernamePasswordAuthenticationFilter.class) // Logout filter
                 .build();
     }
