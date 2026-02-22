@@ -1,11 +1,16 @@
 package com.example.backend.controller;
 
 import com.example.backend.contract.UserServiceContract;
+import com.example.backend.contract.DocumentServiceContract;
 import com.example.backend.dto.*;
 import com.example.backend.entity.User;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +21,7 @@ import java.util.List;
 public class UserController {
 
     private final UserServiceContract userService;
+    private final DocumentServiceContract documentService; // Inject document service
 
     /**
      * Get current authenticated user profile
@@ -124,5 +130,19 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Comptable validates a document (approve/reject)
+     */
+    @PostMapping("/documents/{documentId}/validate")
+    public ResponseEntity<DocumentResponseDTO> validateDocument(
+            @PathVariable Long documentId,
+            @Valid @RequestBody DocumentValidationDTO validation,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        // Get current user (comptable)
+        com.example.backend.entity.User user = ((com.example.backend.security.CustomUserDetails) userDetails).getUser();
+        DocumentResponseDTO response = documentService.validateDocument(documentId, validation, user);
+        return ResponseEntity.ok(response);
     }
 }
