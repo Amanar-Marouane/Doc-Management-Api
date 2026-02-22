@@ -1,8 +1,8 @@
 package com.example.backend.controller;
 
+import com.example.backend.contract.UserServiceContract;
 import com.example.backend.dto.*;
 import com.example.backend.entity.User;
-import com.example.backend.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +15,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserService userService;
+    private final UserServiceContract userService;
 
     /**
      * Get current authenticated user profile

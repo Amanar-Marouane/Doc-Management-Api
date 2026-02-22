@@ -1,7 +1,7 @@
 package com.example.backend.controller;
 
+import com.example.backend.contract.SocieteServiceContract;
 import com.example.backend.dto.*;
-import com.example.backend.service.SocieteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +14,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SocieteController {
 
-    private final SocieteService societeService;
+    private final SocieteServiceContract societeService;
 
     /**
      * Create a new Societe - ADMIN ONLY

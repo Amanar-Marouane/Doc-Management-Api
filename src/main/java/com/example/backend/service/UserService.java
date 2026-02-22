@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.contract.UserServiceContract;
 import com.example.backend.dto.*;
 import com.example.backend.entity.Societe;
 import com.example.backend.entity.User;
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class UserService implements UserServiceContract {
 
     private final UserRepository userRepository;
     private final SocieteRepository societeRepository;
