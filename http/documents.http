@@ -1,0 +1,79 @@
+### Variables
+@baseUrl = http://localhost:8080/api
+@userToken = your-user-token-here
+@comptableToken = your-comptable-token-here
+
+### ==================== DOCUMENT ENDPOINTS ====================
+
+### Get All My Documents
+GET {{baseUrl}}/documents
+Authorization: Bearer {{userToken}}
+
+### Upload Document
+POST {{baseUrl}}/documents
+Authorization: Bearer {{userToken}}
+Content-Type: multipart/form-data
+
+# Form fields:
+# - file: (binary file)
+# - numeroPiece: "DOC-001"
+# - typeDocument: "FACTURE"
+# - categorieComptable: "ACHAT"
+# - datePiece: "2024-06-01"
+# - montant: 1500.00
+# - fournisseur: "Fournisseur XYZ"
+# - exerciceComptable: 2024
+
+### Get Documents By Exercice
+GET {{baseUrl}}/documents/exercice/2024
+Authorization: Bearer {{userToken}}
+
+### Get Document By ID
+GET {{baseUrl}}/documents/1
+Authorization: Bearer {{userToken}}
+
+### Download Document By ID
+GET {{baseUrl}}/documents/1/download
+Authorization: Bearer {{userToken}}
+
+### ==================== VALIDATION (COMPTABLE) ====================
+
+### Comptable Validate Document (Approve)
+POST {{baseUrl}}/v1/users/documents/1/validate
+Authorization: Bearer {{comptableToken}}
+Content-Type: application/json
+
+{
+  "action": "VALIDER",
+  "commentaire": "Document conforme"
+}
+
+### Comptable Validate Document (Reject)
+POST {{baseUrl}}/v1/users/documents/1/validate
+Authorization: Bearer {{comptableToken}}
+Content-Type: application/json
+
+{
+  "action": "REJETER",
+  "commentaire": "Erreur sur le montant"
+}
+
+### ==================== ERROR CASES ====================
+
+### Validate Document Without Token (should fail)
+POST {{baseUrl}}/v1/users/documents/1/validate
+Content-Type: application/json
+
+{
+  "action": "VALIDER",
+  "commentaire": "Sans authentification"
+}
+
+### Validate Document With Missing Comment (should fail)
+POST {{baseUrl}}/v1/users/documents/1/validate
+Authorization: Bearer {{comptableToken}}
+Content-Type: application/json
+
+{
+  "action": "REJETER"
+}
