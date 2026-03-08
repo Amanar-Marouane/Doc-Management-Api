@@ -1,6 +1,7 @@
 package com.example.backend.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import com.example.backend.entity.Document;
 import com.example.backend.entity.Societe;
@@ -8,7 +9,7 @@ import com.example.backend.entity.Societe;
 import java.util.List;
 import java.util.Optional;
 
-public interface DocumentRepository extends JpaRepository<Document, Long> {
+public interface DocumentRepository extends JpaRepository<Document, Long>, JpaSpecificationExecutor<Document> {
 
     List<Document> findBySocieteAndExerciceComptable(Societe societe, Integer exerciceComptable);
 

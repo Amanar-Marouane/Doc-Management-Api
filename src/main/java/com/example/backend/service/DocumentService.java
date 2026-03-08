@@ -22,8 +22,16 @@ import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.SocieteRepository;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 @Service
 @RequiredArgsConstructor
@@ -33,9 +41,11 @@ public class DocumentService implements DocumentServiceContract {
     private final SocieteRepository societeRepository;
     private final FileStorageService fileStorageService;
     private final FileValidatorContract fileValidator;
+    private final AuditLogService auditLogService;
 
     @Transactional
-    public DocumentResponseDTO uploadDocument(DocumentUploadDTO dto, MultipartFile file, User user) {
+    public DocumentResponseDTO uploadDocument(DocumentUploadDTO dto, MultipartFile file, String societyId,
+            User uploadedBy) {
         // Validate file
         fileValidator.validate(file);
 
@@ -45,12 +55,9 @@ public class DocumentService implements DocumentServiceContract {
                     String.format("Un document avec le numéro de pièce '%s' existe déjà", dto.getNumeroPiece()));
         });
 
-        // Get societe
-        Societe societe = user.getSociete();
-        if (societe == null) {
-            throw new BusinessException("NO_SOCIETE",
-                    "L'utilisateur n'est associé à aucune société");
-        }
+        // Find societe
+        Societe societe = societeRepository.findById(Long.parseLong(societyId))
+                .orElseThrow(() -> new ResourceNotFoundException("Société", societyId));
 
         // Save file
         String savedFilePath = fileStorageService.save(
@@ -58,7 +65,7 @@ public class DocumentService implements DocumentServiceContract {
                 societe.getId(),
                 dto.getExerciceComptable());
 
-        // Create document
+        // Create document — uploadedBy is the authenticated caller
         Document document = Document.builder()
                 .numeroPiece(dto.getNumeroPiece())
                 .typeDocument(dto.getTypeDocument())
@@ -70,13 +77,13 @@ public class DocumentService implements DocumentServiceContract {
                 .nomFichierOriginal(file.getOriginalFilename())
                 .statut(Document.StatutDocument.EN_ATTENTE)
                 .societe(societe)
-                .uploadedBy(user)
+                .uploadedBy(uploadedBy)
                 .exerciceComptable(dto.getExerciceComptable())
                 .build();
 
         try {
             Document saved = documentRepository.save(document);
-
+            auditLogService.logUpload(saved, uploadedBy);
             return mapToDTO(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(
@@ -85,14 +92,20 @@ public class DocumentService implements DocumentServiceContract {
         }
     }
 
-    public List<DocumentResponseDTO> getDocumentsBySocieteAndExercice(Long societeId, Integer exercice) {
-        Societe societe = societeRepository.findById(societeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Société", societeId.toString()));
+    public List<DocumentResponseDTO> getDocumentsBySocieteAndExercice(Long accoutantId, Integer exercice) {
+        List<Societe> societes = societeRepository.findByAccountantId(accoutantId);
+        if (societes.isEmpty()) {
+            throw new ResourceNotFoundException("Société", accoutantId.toString());
+        }
 
-        return documentRepository.findBySocieteAndExerciceComptable(societe, exercice)
-                .stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
+        List<DocumentResponseDTO> documents = new ArrayList<>();
+        societes.forEach(s -> {
+            documents.addAll(documentRepository.findBySocieteAndExerciceComptable(s, exercice)
+                    .stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList()));
+        });
+        return documents;
     }
 
     public List<DocumentResponseDTO> getAllPendingDocuments() {
@@ -110,7 +123,7 @@ public class DocumentService implements DocumentServiceContract {
     }
 
     @Transactional
-    public DocumentResponseDTO validateDocument(Long documentId, DocumentValidationDTO validation, User comptable) {
+    public DocumentResponseDTO validateDocument(Long documentId, DocumentValidationDTO validation, User admin) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", documentId.toString()));
 
@@ -133,9 +146,16 @@ public class DocumentService implements DocumentServiceContract {
         }
 
         document.setDateValidation(LocalDateTime.now());
-        document.setValidatedBy(comptable);
+        document.setValidatedBy(admin);
 
         Document updated = documentRepository.save(document);
+
+        if (validation.getAction() == DocumentValidationDTO.Action.VALIDER) {
+            auditLogService.logValidation(updated, admin);
+        } else {
+            auditLogService.logRejection(updated, admin, validation.getCommentaire());
+        }
+
         return mapToDTO(updated);
     }
 
@@ -145,14 +165,20 @@ public class DocumentService implements DocumentServiceContract {
         return mapToDTO(document);
     }
 
-    public List<DocumentResponseDTO> getDocumentsBySociete(Long societeId) {
-        Societe societe = societeRepository.findById(societeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Société", societeId.toString()));
+    public List<DocumentResponseDTO> getDocumentsBySociete(Long accoutantId) {
+        List<Societe> societes = societeRepository.findByAccountantId(accoutantId);
+        if (societes.isEmpty()) {
+            throw new ResourceNotFoundException("Société", accoutantId.toString());
+        }
 
-        return documentRepository.findBySociete(societe)
-                .stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
+        List<DocumentResponseDTO> documents = new ArrayList<>();
+        societes.forEach(s -> {
+            documents.addAll(documentRepository.findBySociete(s)
+                    .stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList()));
+        });
+        return documents;
     }
 
     public byte[] downloadDocument(Long documentId) {
@@ -183,5 +209,81 @@ public class DocumentService implements DocumentServiceContract {
                 .updatedAt(document.getUpdatedAt())
                 .cheminFichier(document.getCheminFichier())
                 .build();
+    }
+
+    @Override
+    public List<DocumentResponseDTO> getPendingDocumentsForCurrentUser(User user) {
+        if (user.getRole() == User.Role.ADMIN) {
+            return documentRepository.findByStatut(Document.StatutDocument.EN_ATTENTE)
+                    .stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+        }
+
+        List<Societe> societes = societeRepository.findByAccountant(user);
+        if (societes.isEmpty()) {
+            throw new BusinessException("NO_SOCIETE", "L'utilisateur n'est associé à aucune société");
+        }
+        List<DocumentResponseDTO> documents = new ArrayList<>();
+        societes.forEach(s -> {
+            documents.addAll(documentRepository.findBySocieteAndStatut(s, Document.StatutDocument.EN_ATTENTE)
+                    .stream().map(this::mapToDTO)
+                    .collect(Collectors.toList()));
+        });
+        return documents;
+    }
+
+    @Override
+    public Page<DocumentResponseDTO> getDocumentsBySocietePaginatedFiltered(
+            Long accountantId,
+            Integer page,
+            Integer size,
+            String sortBy,
+            String sortDir,
+            Document.StatutDocument statut,
+            Document.TypeDocument typeDocument,
+            Integer exerciceComptable,
+            String numeroPiece,
+            String fournisseur,
+            LocalDate datePieceFrom,
+            LocalDate datePieceTo) {
+
+        List<Societe> societes = societeRepository.findByAccountantId(accountantId);
+        if (societes.isEmpty()) {
+            throw new ResourceNotFoundException("Société", accountantId.toString());
+        }
+
+        Sort sort = "asc".equalsIgnoreCase(sortDir)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Specification<Document> spec = (root, query, cb) -> root.get("societe").in(societes);
+
+        if (statut != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("statut"), statut));
+        }
+        if (typeDocument != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("typeDocument"), typeDocument));
+        }
+        if (exerciceComptable != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("exerciceComptable"), exerciceComptable));
+        }
+        if (numeroPiece != null && !numeroPiece.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("numeroPiece")),
+                    "%" + numeroPiece.trim().toLowerCase() + "%"));
+        }
+        if (fournisseur != null && !fournisseur.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("fournisseur")),
+                    "%" + fournisseur.trim().toLowerCase() + "%"));
+        }
+        if (datePieceFrom != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("datePiece"), datePieceFrom));
+        }
+        if (datePieceTo != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("datePiece"), datePieceTo));
+        }
+
+        return documentRepository.findAll(spec, pageable).map(this::mapToDTO);
     }
 }
