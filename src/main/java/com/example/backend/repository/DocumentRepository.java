@@ -22,4 +22,7 @@ public interface DocumentRepository extends JpaRepository<Document, Long>, JpaSp
     List<Document> findBySociete(Societe societe);
 
     List<Document> findByStatutAndExerciceComptable(Document.StatutDocument statut, Integer exerciceComptable);
+
+    int countBySociete(Societe societe);
+    int countBySocieteAndStatut(Societe societe, Document.StatutDocument statut);
 }

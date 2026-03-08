@@ -355,15 +355,12 @@ public class DocumentService implements DocumentServiceContract {
         if (user.getRole() == Role.COMPTABLE) {
             List<Societe> societes = societeRepository.findByAccountantId(accountantId);
             if (societes.isEmpty()) {
-                // Return empty page instead of throwing exception if you want to be more
-                // user-friendly,
-                // but keeping your logic:
                 throw new ResourceNotFoundException("Société", accountantId.toString());
             }
             spec = spec.and((root, query, cb) -> root.get("societe").in(societes));
         }
 
-        // 5. Dynamic Filters (using helper method for readability)
+        // 5. Dynamic Filters
         spec = spec.and(buildFilters(statut, typeDocument, exerciceComptable, numeroPiece, fournisseur, datePieceFrom,
                 datePieceTo));
 
@@ -406,4 +403,17 @@ public class DocumentService implements DocumentServiceContract {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-    }}
+    }
+
+    public int countDocumentsBySociete(Long societeId) {
+        Societe societe = societeRepository.findById(societeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Société", societeId.toString()));
+        return documentRepository.countBySociete(societe);
+    }
+
+    public int countDocumentsBySocieteAndStatut(Long societeId, Document.StatutDocument statut) {
+        Societe societe = societeRepository.findById(societeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Société", societeId.toString()));
+        return documentRepository.countBySocieteAndStatut(societe, statut);
+    }
+}

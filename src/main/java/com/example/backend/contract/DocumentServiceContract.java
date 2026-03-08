@@ -45,4 +45,7 @@ public interface DocumentServiceContract {
             String fournisseur,
             LocalDate datePieceFrom,
             LocalDate datePieceTo);
+
+    int countDocumentsBySociete(Long societeId);
+    int countDocumentsBySocieteAndStatut(Long societeId, Document.StatutDocument statut);
 }
