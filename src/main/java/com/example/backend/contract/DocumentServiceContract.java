@@ -28,6 +28,10 @@ public interface DocumentServiceContract {
 
     byte[] downloadDocument(Long documentId);
 
+    void deleteDocument(Long documentId, User deletedBy);
+
+    void purgeDocument(Long documentId, User deletedBy);
+
     Page<DocumentResponseDTO> getDocumentsBySocietePaginatedFiltered(
             Long accountantId,
             Integer page,

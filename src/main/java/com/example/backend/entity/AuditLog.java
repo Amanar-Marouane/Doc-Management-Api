@@ -44,6 +44,7 @@ public class AuditLog {
     public enum AuditAction {
         DOCUMENT_UPLOADED,
         DOCUMENT_VALIDATED,
-        DOCUMENT_REJECTED
+        DOCUMENT_REJECTED,
+        DOCUMENT_DELETED
     }
 }

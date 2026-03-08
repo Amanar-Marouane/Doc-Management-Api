@@ -13,7 +13,7 @@ import com.example.backend.util.FileHelper;
 
 @Service
 public class FileValidatorService implements FileValidatorContract {
-    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
     private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList("pdf", "jpg", "jpeg", "png");
 
     @Override
@@ -24,7 +24,7 @@ public class FileValidatorService implements FileValidatorContract {
 
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new BusinessException("FILE_TOO_LARGE",
-                    "La taille du fichier ne doit pas dépasser 10MB");
+                    "La taille du fichier ne doit pas dépasser 20MB");
         }
 
         String originalFilename = file.getOriginalFilename();

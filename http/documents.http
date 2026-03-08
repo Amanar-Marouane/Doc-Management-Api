@@ -345,3 +345,41 @@ Content-Type: application/json
 ### Get Audit Logs With Non-Admin Token (should fail - 403 ACCESS_DENIED)
 GET {{baseUrl}}/documents/1/audit-logs
 Authorization: Bearer {{comptableToken}}
+
+### ==================== SOFT DELETE ====================
+
+### Soft Delete - Pending Document (any authenticated user, marks as SUPPRIME)
+DELETE {{baseUrl}}/documents/1
+Authorization: Bearer {{comptableToken}}
+
+### Soft Delete - Rejected Document (ADMIN only, marks as SUPPRIME)
+DELETE {{baseUrl}}/documents/2
+Authorization: Bearer {{adminToken}}
+
+### Soft Delete - Rejected Document With Non-Admin Token (should fail - 403 FORBIDDEN)
+DELETE {{baseUrl}}/documents/2
+Authorization: Bearer {{comptableToken}}
+
+### Soft Delete - Validated Document (should fail - 400 NOT_DELETABLE)
+# Validated documents cannot be soft-deleted — use purge after soft-deleting a SUPPRIME doc
+DELETE {{baseUrl}}/documents/3
+Authorization: Bearer {{adminToken}}
+
+### Soft Delete - Already SUPPRIME Document (should fail - 400 ALREADY_DELETED)
+DELETE {{baseUrl}}/documents/1
+Authorization: Bearer {{adminToken}}
+
+### ==================== PURGE (PERMANENT / HARD DELETE - ADMIN ONLY) ====================
+
+### Purge - SUPPRIME Document (ADMIN only, clears audit logs + deletes file + deletes record)
+DELETE {{baseUrl}}/documents/1/purge
+Authorization: Bearer {{adminToken}}
+
+### Purge - Non-SUPPRIME Document (should fail - 400 PURGE_NOT_ALLOWED)
+# Document must have SUPPRIME status before it can be purged
+DELETE {{baseUrl}}/documents/3/purge
+Authorization: Bearer {{adminToken}}
+
+### Purge - With Non-Admin Token (should fail - 403 ACCESS_DENIED)
+DELETE {{baseUrl}}/documents/1/purge
+Authorization: Bearer {{comptableToken}}

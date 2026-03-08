@@ -32,4 +32,21 @@ public class DocumentResponseDTO {
     private Integer exerciceComptable;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /**
+     * Date after which this document may be deleted (exerciceComptable + 10 years,
+     * Dec 31).
+     */
+    private LocalDate retentionExpiresAt;
+
+    /**
+     * True if the 10-year retention period has fully elapsed (future-proof flag).
+     */
+    private boolean retentionExpired;
+
+    /** True for EN_ATTENTE (anyone) and REJETE (admin) statuses — soft-delete is allowed. */
+    private boolean canBeDeleted;
+
+    /** True when status is SUPPRIME — document can be permanently purged by admin. */
+    private boolean canBePurged;
 }

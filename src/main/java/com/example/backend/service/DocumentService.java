@@ -16,10 +16,14 @@ import com.example.backend.dto.DocumentValidationDTO;
 import com.example.backend.entity.Document;
 import com.example.backend.entity.Societe;
 import com.example.backend.entity.User;
+import com.example.backend.entity.User.Role;
 import com.example.backend.exception.BusinessException;
 import com.example.backend.exception.ResourceNotFoundException;
 import com.example.backend.repository.DocumentRepository;
 import com.example.backend.repository.SocieteRepository;
+import com.example.backend.repository.UserRepository;
+
+import jakarta.persistence.criteria.Predicate;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
@@ -38,6 +42,7 @@ import org.springframework.data.jpa.domain.Specification;
 public class DocumentService implements DocumentServiceContract {
 
     private final DocumentRepository documentRepository;
+    private final UserRepository userRepository;
     private final SocieteRepository societeRepository;
     private final FileStorageService fileStorageService;
     private final FileValidatorContract fileValidator;
@@ -136,6 +141,9 @@ public class DocumentService implements DocumentServiceContract {
         if (validation.getAction() == DocumentValidationDTO.Action.VALIDER) {
             document.setStatut(Document.StatutDocument.VALIDE);
             document.setCommentaireComptable(validation.getCommentaire());
+            // Retention period starts from the year the document is officially validated.
+            // Law N° 9-88: 10 years of mandatory retention.
+            document.setRetentionExpiresAt(LocalDate.of(LocalDateTime.now().getYear() + 10, 12, 31));
         } else {
             if (validation.getCommentaire() == null || validation.getCommentaire().trim().isEmpty()) {
                 throw new BusinessException("REJECTION_REASON_REQUIRED",
@@ -188,7 +196,87 @@ public class DocumentService implements DocumentServiceContract {
         return fileStorageService.read(document.getCheminFichier());
     }
 
+    @Transactional
+    public void deleteDocument(Long documentId, User deletedBy) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", documentId.toString()));
+
+        switch (document.getStatut()) {
+
+            case EN_ATTENTE:
+                // Pending documents: any authenticated user can soft-delete.
+                break;
+
+            case REJETE:
+                // Rejected documents: admin only.
+                if (deletedBy.getRole() != User.Role.ADMIN) {
+                    throw new BusinessException("FORBIDDEN",
+                            "Seul un administrateur peut supprimer un document rejeté");
+                }
+                break;
+
+            case VALIDE:
+                // Validated documents cannot be soft-deleted at all.
+                // Use the purge endpoint once the document has SUPPRIME status.
+                throw new BusinessException("NOT_DELETABLE",
+                        String.format(
+                                "Le document '%s' est validé et ne peut pas être supprimé. "
+                                        + "Seule la suppression définitive (purge) est possible via DELETE /api/documents/{id}/purge, "
+                                        + "et uniquement après avoir marqué le document comme SUPPRIME.",
+                                document.getNumeroPiece()));
+
+            case SUPPRIME:
+                throw new BusinessException("ALREADY_DELETED",
+                        String.format("Le document '%s' est déjà marqué comme supprimé.", document.getNumeroPiece()));
+        }
+
+        document.setStatut(Document.StatutDocument.SUPPRIME);
+        auditLogService.logDeletion(document, deletedBy);
+        documentRepository.save(document);
+    }
+
+    @Transactional
+    public void purgeDocument(Long documentId, User deletedBy) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", documentId.toString()));
+
+        if (deletedBy.getRole() != User.Role.ADMIN) {
+            throw new BusinessException("FORBIDDEN",
+                    "Seul un administrateur peut effectuer une suppression définitive (purge)");
+        }
+
+        if (document.getStatut() != Document.StatutDocument.SUPPRIME) {
+            throw new BusinessException("PURGE_NOT_ALLOWED",
+                    String.format(
+                            "La purge du document '%s' n'est autorisée que si son statut est SUPPRIME (statut actuel: %s).",
+                            document.getNumeroPiece(), document.getStatut()));
+        }
+
+        // Clear audit trail, then remove physical file and DB record.
+        auditLogService.deleteForDocument(document);
+        fileStorageService.delete(document.getCheminFichier());
+        documentRepository.delete(document);
+    }
+
     private DocumentResponseDTO mapToDTO(Document document) {
+        LocalDate retentionExpiresAt = document.getRetentionExpiresAt();
+        boolean retentionExpired = LocalDate.now().isAfter(retentionExpiresAt);
+
+        // Soft-delete eligibility (role enforcement is done in deleteDocument):
+        // EN_ATTENTE → anyone can soft-delete
+        // REJETE → admin can soft-delete (no timing constraint)
+        // VALIDE → cannot be soft-deleted; must be purged after retention expires
+        // SUPPRIME → already soft-deleted; only purgeable
+        boolean canBeDeleted = switch (document.getStatut()) {
+            case EN_ATTENTE -> true;
+            case REJETE -> true;
+            case VALIDE, SUPPRIME -> false;
+        };
+
+        // Hard-delete (purge) eligibility: only SUPPRIME documents can be purged (admin
+        // only).
+        boolean canBePurged = document.getStatut() == Document.StatutDocument.SUPPRIME;
+
         return DocumentResponseDTO.builder()
                 .id(document.getId())
                 .numeroPiece(document.getNumeroPiece())
@@ -208,6 +296,10 @@ public class DocumentService implements DocumentServiceContract {
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
                 .cheminFichier(document.getCheminFichier())
+                .retentionExpiresAt(retentionExpiresAt)
+                .retentionExpired(retentionExpired)
+                .canBeDeleted(canBeDeleted)
+                .canBePurged(canBePurged)
                 .build();
     }
 
@@ -248,42 +340,70 @@ public class DocumentService implements DocumentServiceContract {
             LocalDate datePieceFrom,
             LocalDate datePieceTo) {
 
-        List<Societe> societes = societeRepository.findByAccountantId(accountantId);
-        if (societes.isEmpty()) {
-            throw new ResourceNotFoundException("Société", accountantId.toString());
-        }
-
-        Sort sort = "asc".equalsIgnoreCase(sortDir)
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
+        // 1. Setup Pagination
+        Sort sort = "asc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Specification<Document> spec = (root, query, cb) -> root.get("societe").in(societes);
+        // 2. Fetch User and verify permissions
+        User user = userRepository.findById(accountantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", accountantId.toString()));
 
-        if (statut != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("statut"), statut));
+        // 3. Initialize Specification with a base condition (where 1=1)
+        Specification<Document> spec = Specification.where((root, query, cb) -> cb.conjunction());
+
+        // 4. Role-based Filtering
+        if (user.getRole() == Role.COMPTABLE) {
+            List<Societe> societes = societeRepository.findByAccountantId(accountantId);
+            if (societes.isEmpty()) {
+                // Return empty page instead of throwing exception if you want to be more
+                // user-friendly,
+                // but keeping your logic:
+                throw new ResourceNotFoundException("Société", accountantId.toString());
+            }
+            spec = spec.and((root, query, cb) -> root.get("societe").in(societes));
         }
-        if (typeDocument != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("typeDocument"), typeDocument));
-        }
-        if (exerciceComptable != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("exerciceComptable"), exerciceComptable));
-        }
-        if (numeroPiece != null && !numeroPiece.trim().isEmpty()) {
-            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("numeroPiece")),
-                    "%" + numeroPiece.trim().toLowerCase() + "%"));
-        }
-        if (fournisseur != null && !fournisseur.trim().isEmpty()) {
-            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("fournisseur")),
-                    "%" + fournisseur.trim().toLowerCase() + "%"));
-        }
-        if (datePieceFrom != null) {
-            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("datePiece"), datePieceFrom));
-        }
-        if (datePieceTo != null) {
-            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("datePiece"), datePieceTo));
-        }
+
+        // 5. Dynamic Filters (using helper method for readability)
+        spec = spec.and(buildFilters(statut, typeDocument, exerciceComptable, numeroPiece, fournisseur, datePieceFrom,
+                datePieceTo));
 
         return documentRepository.findAll(spec, pageable).map(this::mapToDTO);
     }
-}
+
+    private Specification<Document> buildFilters(
+            Document.StatutDocument statut,
+            Document.TypeDocument typeDocument,
+            Integer exerciceComptable,
+            String numeroPiece,
+            String fournisseur,
+            LocalDate datePieceFrom,
+            LocalDate datePieceTo) {
+
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (statut != null)
+                predicates.add(cb.equal(root.get("statut"), statut));
+            if (typeDocument != null)
+                predicates.add(cb.equal(root.get("typeDocument"), typeDocument));
+            if (exerciceComptable != null)
+                predicates.add(cb.equal(root.get("exerciceComptable"), exerciceComptable));
+
+            if (numeroPiece != null && !numeroPiece.isBlank()) {
+                predicates
+                        .add(cb.like(cb.lower(root.get("numeroPiece")), "%" + numeroPiece.trim().toLowerCase() + "%"));
+            }
+            if (fournisseur != null && !fournisseur.isBlank()) {
+                predicates
+                        .add(cb.like(cb.lower(root.get("fournisseur")), "%" + fournisseur.trim().toLowerCase() + "%"));
+            }
+            if (datePieceFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("datePiece"), datePieceFrom));
+            }
+            if (datePieceTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("datePiece"), datePieceTo));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }}

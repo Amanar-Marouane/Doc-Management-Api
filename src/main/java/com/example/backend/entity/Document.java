@@ -69,6 +69,15 @@ public class Document {
     @Column(nullable = false)
     private Integer exerciceComptable;
 
+    /**
+     * Retention expiry date per Moroccan Law N° 9-88: documents must be kept for 10
+     * years
+     * from the end of the fiscal year. Deletion is forbidden before this date.
+     * Example: exerciceComptable=2024 → retentionExpiresAt=2034-12-31
+     */
+    @Column(nullable = false)
+    private LocalDate retentionExpiresAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -81,6 +90,7 @@ public class Document {
         createdAt = now;
         updatedAt = now;
         statut = StatutDocument.EN_ATTENTE;
+        retentionExpiresAt = LocalDate.of(exerciceComptable + 10, 12, 31);
     }
 
     @PreUpdate
@@ -98,6 +108,7 @@ public class Document {
     public enum StatutDocument {
         EN_ATTENTE,
         VALIDE,
-        REJETE
+        REJETE,
+        SUPPRIME
     }
 }

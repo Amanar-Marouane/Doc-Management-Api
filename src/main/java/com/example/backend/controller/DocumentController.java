@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -151,6 +153,44 @@ public class DocumentController {
     public ResponseEntity<List<AuditLogDTO>> getAuditLogs(@PathVariable Long id) {
         List<AuditLogDTO> logs = auditLogService.getAuditLogsForDocument(id);
         return ResponseEntity.ok(logs);
+    }
+
+    /**
+     * Soft-delete a document — marks it as SUPPRIME (file is NOT removed).
+     * Rules enforced by the service:
+     *   EN_ATTENTE → any authenticated user
+     *   REJETE     → ADMIN only
+     *   VALIDE     → NOT allowed (use purge after document reaches SUPPRIME status)
+     *   SUPPRIME   → error (already deleted)
+     * Returns 204 No Content on success.
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Void> deleteDocument(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = extractUser(userDetails);
+        documentService.deleteDocument(id, user);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Permanently purge a document — ADMIN only.
+     * Requires the document to be in SUPPRIME status.
+     * Clears all audit logs, removes the physical file, then deletes the DB record.
+     * Returns 204 No Content on success.
+     */
+    @DeleteMapping("/{id}/purge")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Void> purgeDocument(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User admin = extractUser(userDetails);
+        documentService.purgeDocument(id, admin);
+        return ResponseEntity.noContent().build();
     }
 
     private User extractUser(UserDetails userDetails) {
