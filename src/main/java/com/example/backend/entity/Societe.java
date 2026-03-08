@@ -32,7 +32,7 @@ public class Societe {
     @Column(nullable = false)
     private String emailContact;
 
-    @OneToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "accountant_id", nullable = true)
     private User accountant; // COMPTABLE role user
 

@@ -94,10 +94,6 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
         Map<String, String> claims = new HashMap<>();
         claims.put("role", user.getRole().name());
         claims.put("fullName", user.getFullName());
-        if (user.getSociete() != null) {
-            claims.put("societeId", user.getSociete().getId().toString());
-            claims.put("societeRaisonSociale", user.getSociete().getRaisonSociale());
-        }
 
         // Generate JWT token
         String token = jwtService.generateToken(claims, user.getEmail());
@@ -108,7 +104,6 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(user.getRole().name())
-                .societeRaisonSociale(user.getSociete() != null ? user.getSociete().getRaisonSociale() : null)
                 .build();
 
         // Send JSON response

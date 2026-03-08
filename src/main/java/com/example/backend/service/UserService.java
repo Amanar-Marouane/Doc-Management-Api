@@ -16,7 +16,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,20 +41,12 @@ public class UserService implements UserServiceContract {
             throw new RuntimeException("Email already exists");
         }
 
-        if (request.getSocieteId() != null) {
-            Societe societe = societeRepository.findById(request.getSocieteId())
-                    .orElseThrow(() -> new RuntimeException("Societe not found"));
-            if (societe.getAccountant() != null) {
-                throw new RuntimeException("This Societe already has an assigned accountant");
-            }
-        }
-
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .role(User.Role.COMPTABLE)
-                .societe(request.getSocieteId() != null ? societeRepository.findById(request.getSocieteId()).orElse(null) : null)
+                .societes(null)
                 .build();
 
         User saved = userRepository.save(user);
@@ -124,8 +120,66 @@ public class UserService implements UserServiceContract {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
+        if (request.getSocieteIds() != null) {
+            if (!SecurityUtils.isAdmin()) {
+                throw new RuntimeException("Only admins can update comptable societes");
+            }
+            if (user.getRole() != User.Role.COMPTABLE) {
+                throw new RuntimeException("Societe assignment is only allowed for COMPTABLE users");
+            }
+            syncComptableSocietes(user, request.getSocieteIds());
+        }
+
         User updated = userRepository.save(user);
         return toDTO(updated);
+    }
+
+    @Transactional
+    private void syncComptableSocietes(User accountant, List<Long> societeIds) {
+        // 1. Normalize the input IDs to avoid duplicates or nulls
+        Set<Long> targetIds = (societeIds == null) ? new HashSet<>()
+                : societeIds.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+
+        // 2. Handle Deletions: Find societes currently assigned that are NOT in the new
+        // list
+        List<Societe> currentlyAssigned = societeRepository.findByAccountantId(accountant.getId());
+        for (Societe societe : currentlyAssigned) {
+            if (!targetIds.contains(societe.getId())) {
+                societe.setAccountant(null);
+                // Hibernate tracks this change automatically
+            }
+        }
+
+        // 3. Handle Additions/Updates: Fetch the societes requested in the payload
+        if (!targetIds.isEmpty()) {
+            List<Societe> targetSocietes = societeRepository.findAllById(targetIds);
+
+            if (targetSocietes.size() != targetIds.size()) {
+                throw new RuntimeException("One or more societes were not found");
+            }
+
+            for (Societe societe : targetSocietes) {
+                // Safety Check: Ensure the societe isn't already taken by another accountant
+                User currentBoss = societe.getAccountant();
+                if (currentBoss != null && !currentBoss.getId().equals(accountant.getId())) {
+                    throw new RuntimeException(
+                            "Societe " + societe.getId() + " is already assigned to another accountant");
+                }
+
+                // Assign the new accountant
+                societe.setAccountant(accountant);
+            }
+
+            // Sync the relationship on the Java side
+            accountant.setSocietes(targetSocietes);
+        } else {
+            accountant.setSocietes(new ArrayList<>());
+        }
+
+        // NOTE: No societeRepository.saveAll(toSave) is needed here.
+        // Hibernate flushes changes automatically because of @Transactional.
     }
 
     @Transactional
@@ -187,12 +241,12 @@ public class UserService implements UserServiceContract {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<UserDTO> getUsersWithFilters(User.Role role, Long societeId, Boolean active,
+    public PageResponse<UserDTO> getUsersWithFilters(User.Role role, Boolean active,
             String search, int page, int size, String sortBy) {
         Sort sort = Sort.by(Sort.Direction.DESC, sortBy != null ? sortBy : "createdAt");
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<User> userPage = userRepository.findByFilters(role, societeId, active, search, pageable);
+        Page<User> userPage = userRepository.findByFilters(role, active, search, pageable);
 
         List<UserDTO> userDTOs = userPage.getContent().stream()
                 .map(this::toDTO)
@@ -210,18 +264,19 @@ public class UserService implements UserServiceContract {
     }
 
     private UserDTO toDTO(User user) {
-        SocieteDTO societeDTO = null;
-        if (user.getSociete() != null) {
-            Societe s = user.getSociete();
-            societeDTO = SocieteDTO.builder()
-                    .id(s.getId())
-                    .raisonSociale(s.getRaisonSociale())
-                    .ice(s.getIce())
-                    .adresse(s.getAdresse())
-                    .telephone(s.getTelephone())
-                    .emailContact(s.getEmailContact())
-                    .createdAt(s.getCreatedAt())
-                    .build();
+        List<SocieteDTO> societeDTOs = null;
+        if (user.getSocietes() != null && !user.getSocietes().isEmpty()) {
+            societeDTOs = user.getSocietes().stream()
+                    .map(s -> SocieteDTO.builder()
+                            .id(s.getId())
+                            .raisonSociale(s.getRaisonSociale())
+                            .ice(s.getIce())
+                            .adresse(s.getAdresse())
+                            .telephone(s.getTelephone())
+                            .emailContact(s.getEmailContact())
+                            .createdAt(s.getCreatedAt())
+                            .build())
+                    .collect(Collectors.toList());
         }
 
         return UserDTO.builder()
@@ -229,7 +284,7 @@ public class UserService implements UserServiceContract {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(user.getRole())
-                .societe(societeDTO)
+                .societes(societeDTOs)
                 .active(user.isActive())
                 .createdAt(user.getCreatedAt())
                 .build();

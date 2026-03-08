@@ -2,7 +2,6 @@ package com.example.backend.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -22,7 +21,4 @@ public class CreateSocieteUserDTO {
 
     @NotBlank(message = "Full name is required")
     private String fullName;
-
-    @NotNull(message = "Societe ID is required")
-    private Long societeId;
 }

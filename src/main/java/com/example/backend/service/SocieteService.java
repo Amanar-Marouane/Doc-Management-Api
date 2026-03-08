@@ -46,10 +46,6 @@ public class SocieteService implements SocieteServiceContract {
 
     @Transactional(readOnly = true)
     public SocieteDTO getSocieteById(Long id) {
-        if (!SecurityUtils.isAdmin()) {
-            throw new RuntimeException("Only admins can view societes");
-        }
-
         Societe societe = societeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Societe not found"));
         return toDTO(societe);
@@ -118,11 +114,6 @@ public class SocieteService implements SocieteServiceContract {
             throw new RuntimeException("User must be COMPTABLE to be assigned as accountant");
         }
 
-        // Check if accountant already assigned to another society
-        societeRepository.findByAccountantId(accountantId).ifPresent(s -> {
-            throw new RuntimeException("Accountant is already assigned to another society");
-        });
-
         societe.setAccountant(accountant);
         Societe updated = societeRepository.save(societe);
         return toDTO(updated);
@@ -143,13 +134,6 @@ public class SocieteService implements SocieteServiceContract {
         if (accountant.getRole() != User.Role.COMPTABLE) {
             throw new RuntimeException("User must be COMPTABLE to be an accountant");
         }
-
-        // Check if new accountant is already assigned to another society
-        societeRepository.findByAccountantId(accountantId).ifPresent(s -> {
-            if (!s.getId().equals(societeId)) {
-                throw new RuntimeException("Accountant is already assigned to another society");
-            }
-        });
 
         societe.setAccountant(accountant);
         Societe updated = societeRepository.save(societe);

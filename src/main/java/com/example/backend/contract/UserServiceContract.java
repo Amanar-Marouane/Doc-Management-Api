@@ -22,6 +22,6 @@ public interface UserServiceContract {
 
     UserDTO updateUserStatus(Long id, UpdateUserStatusDTO request);
 
-    PageResponse<UserDTO> getUsersWithFilters(User.Role role, Long societeId, Boolean active,
+    PageResponse<UserDTO> getUsersWithFilters(User.Role role, Boolean active,
             String search, int page, int size, String sortBy);
 }

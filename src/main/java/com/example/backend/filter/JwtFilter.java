@@ -12,8 +12,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.servlet.HandlerExceptionResolver;
-
 import com.example.backend.contract.JwtContract;
 import com.example.backend.exception.InvalidTokenException;
 import com.example.backend.security.CustomUserDetailsService;
@@ -33,7 +31,6 @@ public class JwtFilter extends OncePerRequestFilter {
 
     JwtContract jwtUtility;
     CustomUserDetailsService userUtility;
-    HandlerExceptionResolver handlerExceptionResolver;
     JwtBlacklistService jwtBlacklistService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -41,34 +38,39 @@ public class JwtFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        try {
-            String path = request.getRequestURI();
+        String path = request.getRequestURI();
 
-            // Skip JWT validation for login and logout endpoints
-            if (path.equals("/api/auth/login") || path.equals("/api/auth/logout")) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            processToken(request);
+        // Skip JWT validation for login and logout endpoints
+        if (path.equals("/api/auth/login") || path.equals("/api/auth/logout")) {
             filterChain.doFilter(request, response);
+            return;
+        }
 
+        // Process token separately so downstream filter/controller exceptions
+        // are NOT caught here and are handled by the GlobalExceptionHandler instead
+        try {
+            processToken(request);
         } catch (InvalidTokenException e) {
             AppLogger.error(String.format("Invalid token: %s", e.getMessage()));
             sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
-                    "Token invalide", e.getMessage(), "INVALID_TOKEN", request.getRequestURI());
+                    "Token invalide", e.getMessage(), "INVALID_TOKEN", path);
+            return;
         } catch (JwtException e) {
             AppLogger.error(String.format("JWT error: %s", e.getMessage()));
             sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
                     "Erreur d'authentification", "Le token d'authentification est invalide",
-                    "JWT_ERROR", request.getRequestURI());
+                    "JWT_ERROR", path);
+            return;
         } catch (Exception e) {
             AppLogger.error(String.format("Unexpected JWT Filter error: %s - %s",
                     e.getClass().getSimpleName(), e.getMessage()));
             sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Erreur interne", "Une erreur s'est produite lors de l'authentification",
-                    "INTERNAL_ERROR", request.getRequestURI());
+                    "INTERNAL_ERROR", path);
+            return;
         }
+
+        filterChain.doFilter(request, response);
     }
 
     private void processToken(HttpServletRequest request) {
@@ -81,47 +83,38 @@ public class JwtFilter extends OncePerRequestFilter {
 
         final String jwtToken = authHeader.substring(7);
 
-        try {
-            if (jwtBlacklistService.isBlacklisted(jwtToken)) {
-                AppLogger.warn("Attempted to use blacklisted token");
-                throw new InvalidTokenException("Token has been invalidated");
-            }
-
-            if (jwtUtility.isTokenExpired(jwtToken)) {
-                AppLogger.warn("Attempted to use expired token");
-                return;
-            }
-
-            String email = jwtUtility.getEmail(jwtToken);
-
-            if (email == null) {
-                AppLogger.warn("Token does not contain valid email");
-                return;
-            }
-
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-            if (authentication != null) {
-                return;
-            }
-
-            UserDetails user = userUtility.loadUserByUsername(email);
-
-            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(user, null,
-                    user.getAuthorities());
-
-            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authToken);
-
-            AppLogger.debug(String.format("Successfully authenticated user: %s", email));
-
-        } catch (JwtException e) {
-            AppLogger.error(String.format("JWT validation error: %s", e.getMessage()));
-            throw e;
-        } catch (Exception e) {
-            AppLogger.error(String.format("Unexpected error in token processing: %s", e.getMessage()));
-            throw new InvalidTokenException("Error processing token", e);
+        if (jwtBlacklistService.isBlacklisted(jwtToken)) {
+            AppLogger.warn("Attempted to use blacklisted token");
+            throw new InvalidTokenException("Token has been invalidated");
         }
+
+        if (jwtUtility.isTokenExpired(jwtToken)) {
+            AppLogger.warn("Attempted to use expired token");
+            return;
+        }
+
+        String email = jwtUtility.getEmail(jwtToken);
+
+        if (email == null) {
+            AppLogger.warn("Token does not contain valid email");
+            return;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication != null) {
+            return;
+        }
+
+        UserDetails user = userUtility.loadUserByUsername(email);
+
+        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(user, null,
+                user.getAuthorities());
+
+        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authToken);
+
+        AppLogger.debug(String.format("Successfully authenticated user: %s", email));
     }
 
     private void sendErrorResponse(HttpServletResponse response, int status, String error,

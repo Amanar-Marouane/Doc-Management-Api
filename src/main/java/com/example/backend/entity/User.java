@@ -34,10 +34,6 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "societe_id")
-    private Societe societe;
-
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
@@ -45,6 +41,9 @@ public class User {
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "accountant")
+    private List<Societe> societes;
 
     public enum Role {
         COMPTABLE, // Accountant

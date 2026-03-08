@@ -55,7 +55,10 @@ Content-Type: application/json
 ###
 @comptableId = {{createComptable.response.body.id}}
 
-### Create Comptable With Societe Assignment
+### Create Comptable (societes must be assigned separately via PUT /{id})
+# NOTE: CreateComptableDTO only accepts: email, password, fullName.
+# There is no societeId/societeIds field. To assign societes after creation,
+# use PUT /users/{id} with the societeIds array (see update section below).
 POST {{baseUrl}}/users/comptable
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -63,8 +66,7 @@ Content-Type: application/json
 {
   "email": "comptable2@example.com",
   "password": "password123",
-  "fullName": "Marie Martin",
-  "societeId": 1
+  "fullName": "Marie Martin"
 }
 
 ### ==================== ADMIN - LIST USERS ====================
@@ -120,7 +122,21 @@ Content-Type: application/json
   "password": "newSecurePassword123"
 }
 
-### Admin Update - Change Active Status
+### Admin Update - Full available fields (AdminUpdateUserDTO)
+# NOTE: the 'role' field is accepted by the DTO but is NOT applied by UserService.adminUpdateUser.
+# Changing role via this endpoint has no effect — see Known Issues in README.
+PUT {{baseUrl}}/users/{{comptableId}}/admin
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Updated Comptable Name",
+  "email": "updated@example.com",
+  "password": "newSecure456",
+  "active": false
+}
+
+### Admin Update - Deactivate Only
 PUT {{baseUrl}}/users/{{comptableId}}/admin
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json

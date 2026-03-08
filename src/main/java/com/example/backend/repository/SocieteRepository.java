@@ -15,7 +15,7 @@ public interface SocieteRepository extends JpaRepository<Societe, Long> {
 
     boolean existsByIce(String ice);
 
-    Optional<Societe> findByAccountantId(Long accountantId);
+    List<Societe> findByAccountantId(Long accountantId);
 
     List<Societe> findByAccountant(User accountant);
 }

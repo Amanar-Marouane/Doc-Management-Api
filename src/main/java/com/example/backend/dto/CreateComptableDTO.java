@@ -11,5 +11,4 @@ public class CreateComptableDTO {
     private String email;
     private String password;
     private String fullName;
-    private Long societeId; // Optional: assign to societe on creation
 }

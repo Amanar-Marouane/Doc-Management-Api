@@ -13,6 +13,5 @@ public class AdminUpdateUserDTO {
     private String email;
     private String password;
     private User.Role role;
-    private Long societeId; // null for COMPTABLE and ADMIN
     private Boolean active;
 }

@@ -141,6 +141,8 @@ Content-Type: application/json
 POST {{baseUrl}}/societes/1/accountant/1
 Authorization: Bearer {{adminToken}}
 
-### Assign accountant already linked to another societe (should fail)
+### Assign accountant to a societe that is already assigned to a DIFFERENT accountant (should fail)
+# Note: one accountant CAN manage multiple societes. The error only triggers when the TARGET SOCIETE
+# already belongs to another accountant. To test: ensure societe ID 2 has accountant != 3.
 POST {{baseUrl}}/societes/2/accountant/3
 Authorization: Bearer {{adminToken}}
