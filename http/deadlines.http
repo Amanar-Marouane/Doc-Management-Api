@@ -1,0 +1,208 @@
+### Variables
+@baseUrl = http://localhost:8080/api/v1
+@adminToken = your-admin-token-here
+@comptableToken = your-comptable-token-here
+
+### ==================== CREATE ====================
+
+### Create Deadline - UPCOMING (status auto-computed from dueDate)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-12-31",
+  "documentCategory": "TVA"
+}
+
+### Create Deadline - explicit UPCOMING status
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{comptableToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-09-30",
+  "documentCategory": "BILAN_ANNUEL",
+  "status": "UPCOMING"
+}
+
+### Create Deadline - already OVERDUE (past dueDate, no status provided → auto OVERDUE)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 2,
+  "fiscalYear": 2023,
+  "dueDate": "2024-03-31",
+  "documentCategory": "LIASSE_FISCALE"
+}
+
+### Create Deadline - explicitly COMPLETED
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2023,
+  "dueDate": "2024-06-30",
+  "documentCategory": "RELEVE_BANCAIRE",
+  "status": "COMPLETED"
+}
+
+### ==================== READ ====================
+
+### Get All Deadlines (default: page=0, size=10, sortBy=dueDate, sortDir=asc)
+GET {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+
+### Get All Deadlines - Custom Pagination
+GET {{baseUrl}}/deadlines?page=0&size=5&sortBy=dueDate&sortDir=asc
+Authorization: Bearer {{adminToken}}
+
+### Get All Deadlines - Filter by societe (paginated)
+GET {{baseUrl}}/deadlines?societeId=1&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get All Deadlines - Filter by status UPCOMING (paginated)
+GET {{baseUrl}}/deadlines?status=UPCOMING&page=0&size=10&sortBy=dueDate&sortDir=asc
+Authorization: Bearer {{adminToken}}
+
+### Get All Deadlines - Filter by status OVERDUE (paginated)
+GET {{baseUrl}}/deadlines?status=OVERDUE&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get All Deadlines - Filter by status COMPLETED (paginated)
+GET {{baseUrl}}/deadlines?status=COMPLETED&page=0&size=10&sortBy=createdAt&sortDir=desc
+Authorization: Bearer {{comptableToken}}
+
+### Get All Deadlines - Combine societe + status filters
+GET {{baseUrl}}/deadlines?societeId=1&status=UPCOMING&page=0&size=10
+Authorization: Bearer {{adminToken}}
+
+### Get All Deadlines - Page 2
+GET {{baseUrl}}/deadlines?page=1&size=5
+Authorization: Bearer {{adminToken}}
+
+### Get Deadline By ID
+GET {{baseUrl}}/deadlines/1
+Authorization: Bearer {{adminToken}}
+
+### ==================== UPDATE ====================
+
+### Full Update - change dueDate and documentCategory
+PUT {{baseUrl}}/deadlines/1
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-10-31",
+  "documentCategory": "TVA_MENSUELLE"
+}
+
+### Full Update - mark as COMPLETED via full update
+PUT {{baseUrl}}/deadlines/1
+Authorization: Bearer {{comptableToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-09-30",
+  "documentCategory": "BILAN_ANNUEL",
+  "status": "COMPLETED"
+}
+
+### Patch Status - mark COMPLETED
+PATCH {{baseUrl}}/deadlines/1/status?status=COMPLETED
+Authorization: Bearer {{comptableToken}}
+
+### Patch Status - mark OVERDUE manually
+PATCH {{baseUrl}}/deadlines/2/status?status=OVERDUE
+Authorization: Bearer {{adminToken}}
+
+### Patch Status - reopen as UPCOMING
+PATCH {{baseUrl}}/deadlines/3/status?status=UPCOMING
+Authorization: Bearer {{adminToken}}
+
+### ==================== DELETE ====================
+
+### Delete Deadline (ADMIN only)
+DELETE {{baseUrl}}/deadlines/1
+Authorization: Bearer {{adminToken}}
+
+### ==================== OVERDUE REFRESH ====================
+
+### Refresh Overdue Statuses - bulk-marks past-due deadlines as OVERDUE (ADMIN only)
+POST {{baseUrl}}/deadlines/refresh-overdue
+Authorization: Bearer {{adminToken}}
+
+### ==================== ERROR CASES ====================
+
+### Create - Missing required field societeId (should fail - 400)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "fiscalYear": 2024,
+  "dueDate": "2025-12-31",
+  "documentCategory": "TVA"
+}
+
+### Create - Missing documentCategory (should fail - 400)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-12-31"
+}
+
+### Create - fiscalYear out of range (should fail - 400)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 1999,
+  "dueDate": "2025-12-31",
+  "documentCategory": "TVA"
+}
+
+### Create - Non-existent societeId (should fail - 404)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 9999,
+  "fiscalYear": 2024,
+  "dueDate": "2025-12-31",
+  "documentCategory": "TVA"
+}
+
+### Get Deadline - Non-existent ID (should fail - 404)
+GET {{baseUrl}}/deadlines/9999
+Authorization: Bearer {{adminToken}}
+
+### Delete - With COMPTABLE token (should fail - 403)
+DELETE {{baseUrl}}/deadlines/1
+Authorization: Bearer {{comptableToken}}
+
+### Refresh Overdue - With COMPTABLE token (should fail - 403)
+POST {{baseUrl}}/deadlines/refresh-overdue
+Authorization: Bearer {{comptableToken}}
+
+### Any Endpoint - Without token (should fail - 401)
+GET {{baseUrl}}/deadlines
