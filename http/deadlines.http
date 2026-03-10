@@ -2,10 +2,14 @@
 @baseUrl = http://localhost:8080/api/v1
 @adminToken = your-admin-token-here
 @comptableToken = your-comptable-token-here
+@clientToken = your-client-token-here
 
-### ==================== CREATE ====================
+# documentCategory must be a Document.TypeDocument value:
+#   FACTURE_ACHAT | FACTURE_VENTE | TICKET_CAISSE | RELEVE_BANCAIRE
 
-### Create Deadline - UPCOMING (status auto-computed from dueDate)
+### ==================== CREATE (ADMIN + COMPTABLE) ====================
+
+### Create Deadline - FACTURE_ACHAT (status auto-computed from dueDate)
 POST {{baseUrl}}/deadlines
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -14,10 +18,10 @@ Content-Type: application/json
   "societeId": 1,
   "fiscalYear": 2024,
   "dueDate": "2025-12-31",
-  "documentCategory": "TVA"
+  "documentCategory": "FACTURE_ACHAT"
 }
 
-### Create Deadline - explicit UPCOMING status
+### Create Deadline - RELEVE_BANCAIRE (explicit UPCOMING)
 POST {{baseUrl}}/deadlines
 Authorization: Bearer {{comptableToken}}
 Content-Type: application/json
@@ -26,11 +30,11 @@ Content-Type: application/json
   "societeId": 1,
   "fiscalYear": 2024,
   "dueDate": "2025-09-30",
-  "documentCategory": "BILAN_ANNUEL",
+  "documentCategory": "RELEVE_BANCAIRE",
   "status": "UPCOMING"
 }
 
-### Create Deadline - already OVERDUE (past dueDate, no status provided → auto OVERDUE)
+### Create Deadline - FACTURE_VENTE (past dueDate → auto OVERDUE)
 POST {{baseUrl}}/deadlines
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -39,10 +43,10 @@ Content-Type: application/json
   "societeId": 2,
   "fiscalYear": 2023,
   "dueDate": "2024-03-31",
-  "documentCategory": "LIASSE_FISCALE"
+  "documentCategory": "FACTURE_VENTE"
 }
 
-### Create Deadline - explicitly COMPLETED
+### Create Deadline - TICKET_CAISSE (explicitly COMPLETED)
 POST {{baseUrl}}/deadlines
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -51,11 +55,11 @@ Content-Type: application/json
   "societeId": 1,
   "fiscalYear": 2023,
   "dueDate": "2024-06-30",
-  "documentCategory": "RELEVE_BANCAIRE",
+  "documentCategory": "TICKET_CAISSE",
   "status": "COMPLETED"
 }
 
-### ==================== READ ====================
+### ==================== READ (ADMIN + COMPTABLE + CLIENT) ====================
 
 ### Get All Deadlines (default: page=0, size=10, sortBy=dueDate, sortDir=asc)
 GET {{baseUrl}}/deadlines
@@ -65,19 +69,19 @@ Authorization: Bearer {{adminToken}}
 GET {{baseUrl}}/deadlines?page=0&size=5&sortBy=dueDate&sortDir=asc
 Authorization: Bearer {{adminToken}}
 
-### Get All Deadlines - Filter by societe (paginated)
+### Get All Deadlines - Filter by societe (CLIENT scopes to their own societeId)
 GET {{baseUrl}}/deadlines?societeId=1&page=0&size=10
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{clientToken}}
 
-### Get All Deadlines - Filter by status UPCOMING (paginated)
+### Get All Deadlines - Filter by status UPCOMING
 GET {{baseUrl}}/deadlines?status=UPCOMING&page=0&size=10&sortBy=dueDate&sortDir=asc
 Authorization: Bearer {{adminToken}}
 
-### Get All Deadlines - Filter by status OVERDUE (paginated)
+### Get All Deadlines - Filter by status OVERDUE
 GET {{baseUrl}}/deadlines?status=OVERDUE&page=0&size=10
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{comptableToken}}
 
-### Get All Deadlines - Filter by status COMPLETED (paginated)
+### Get All Deadlines - Filter by status COMPLETED
 GET {{baseUrl}}/deadlines?status=COMPLETED&page=0&size=10&sortBy=createdAt&sortDir=desc
 Authorization: Bearer {{comptableToken}}
 
@@ -85,15 +89,11 @@ Authorization: Bearer {{comptableToken}}
 GET {{baseUrl}}/deadlines?societeId=1&status=UPCOMING&page=0&size=10
 Authorization: Bearer {{adminToken}}
 
-### Get All Deadlines - Page 2
-GET {{baseUrl}}/deadlines?page=1&size=5
-Authorization: Bearer {{adminToken}}
-
 ### Get Deadline By ID
 GET {{baseUrl}}/deadlines/1
-Authorization: Bearer {{adminToken}}
+Authorization: Bearer {{clientToken}}
 
-### ==================== UPDATE ====================
+### ==================== UPDATE (ADMIN + COMPTABLE) ====================
 
 ### Full Update - change dueDate and documentCategory
 PUT {{baseUrl}}/deadlines/1
@@ -104,7 +104,7 @@ Content-Type: application/json
   "societeId": 1,
   "fiscalYear": 2024,
   "dueDate": "2025-10-31",
-  "documentCategory": "TVA_MENSUELLE"
+  "documentCategory": "FACTURE_ACHAT"
 }
 
 ### Full Update - mark as COMPLETED via full update
@@ -116,7 +116,7 @@ Content-Type: application/json
   "societeId": 1,
   "fiscalYear": 2024,
   "dueDate": "2025-09-30",
-  "documentCategory": "BILAN_ANNUEL",
+  "documentCategory": "RELEVE_BANCAIRE",
   "status": "COMPLETED"
 }
 
@@ -132,17 +132,25 @@ Authorization: Bearer {{adminToken}}
 PATCH {{baseUrl}}/deadlines/3/status?status=UPCOMING
 Authorization: Bearer {{adminToken}}
 
-### ==================== DELETE ====================
+### ==================== DELETE (ADMIN + COMPTABLE) ====================
 
-### Delete Deadline (ADMIN only)
+### Delete Deadline - admin
 DELETE {{baseUrl}}/deadlines/1
 Authorization: Bearer {{adminToken}}
 
-### ==================== OVERDUE REFRESH ====================
+### Delete Deadline - comptable
+DELETE {{baseUrl}}/deadlines/2
+Authorization: Bearer {{comptableToken}}
 
-### Refresh Overdue Statuses - bulk-marks past-due deadlines as OVERDUE (ADMIN only)
+### ==================== OVERDUE REFRESH (ADMIN + COMPTABLE) ====================
+
+### Refresh Overdue Statuses - bulk-marks past-due deadlines as OVERDUE
 POST {{baseUrl}}/deadlines/refresh-overdue
 Authorization: Bearer {{adminToken}}
+
+### Refresh Overdue Statuses - with comptable token
+POST {{baseUrl}}/deadlines/refresh-overdue
+Authorization: Bearer {{comptableToken}}
 
 ### ==================== ERROR CASES ====================
 
@@ -154,7 +162,7 @@ Content-Type: application/json
 {
   "fiscalYear": 2024,
   "dueDate": "2025-12-31",
-  "documentCategory": "TVA"
+  "documentCategory": "FACTURE_ACHAT"
 }
 
 ### Create - Missing documentCategory (should fail - 400)
@@ -168,6 +176,18 @@ Content-Type: application/json
   "dueDate": "2025-12-31"
 }
 
+### Create - Invalid documentCategory value (should fail - 400)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-12-31",
+  "documentCategory": "TVA"
+}
+
 ### Create - fiscalYear out of range (should fail - 400)
 POST {{baseUrl}}/deadlines
 Authorization: Bearer {{adminToken}}
@@ -177,7 +197,7 @@ Content-Type: application/json
   "societeId": 1,
   "fiscalYear": 1999,
   "dueDate": "2025-12-31",
-  "documentCategory": "TVA"
+  "documentCategory": "FACTURE_ACHAT"
 }
 
 ### Create - Non-existent societeId (should fail - 404)
@@ -189,20 +209,28 @@ Content-Type: application/json
   "societeId": 9999,
   "fiscalYear": 2024,
   "dueDate": "2025-12-31",
-  "documentCategory": "TVA"
+  "documentCategory": "FACTURE_ACHAT"
 }
 
 ### Get Deadline - Non-existent ID (should fail - 404)
 GET {{baseUrl}}/deadlines/9999
 Authorization: Bearer {{adminToken}}
 
-### Delete - With COMPTABLE token (should fail - 403)
-DELETE {{baseUrl}}/deadlines/1
-Authorization: Bearer {{comptableToken}}
+### Create - With CLIENT token (should fail - 403)
+POST {{baseUrl}}/deadlines
+Authorization: Bearer {{clientToken}}
+Content-Type: application/json
 
-### Refresh Overdue - With COMPTABLE token (should fail - 403)
-POST {{baseUrl}}/deadlines/refresh-overdue
-Authorization: Bearer {{comptableToken}}
+{
+  "societeId": 1,
+  "fiscalYear": 2024,
+  "dueDate": "2025-12-31",
+  "documentCategory": "FACTURE_ACHAT"
+}
+
+### Delete - With CLIENT token (should fail - 403)
+DELETE {{baseUrl}}/deadlines/1
+Authorization: Bearer {{clientToken}}
 
 ### Any Endpoint - Without token (should fail - 401)
 GET {{baseUrl}}/deadlines

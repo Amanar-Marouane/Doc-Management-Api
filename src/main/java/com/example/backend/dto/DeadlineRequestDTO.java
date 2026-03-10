@@ -1,9 +1,9 @@
 package com.example.backend.dto;
 
 import com.example.backend.entity.Deadline;
+import com.example.backend.entity.Document;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
@@ -26,8 +26,8 @@ public class DeadlineRequestDTO {
     @NotNull(message = "La date d'échéance est obligatoire")
     private LocalDate dueDate;
 
-    @NotBlank(message = "La catégorie de document est obligatoire")
-    private String documentCategory;
+    @NotNull(message = "La catégorie de document est obligatoire")
+    private Document.TypeDocument documentCategory;
 
     private Deadline.DeadlineStatus status;
 }

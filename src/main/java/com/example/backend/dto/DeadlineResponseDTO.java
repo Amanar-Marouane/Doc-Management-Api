@@ -1,6 +1,7 @@
 package com.example.backend.dto;
 
 import com.example.backend.entity.Deadline;
+import com.example.backend.entity.Document;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -17,7 +18,7 @@ public class DeadlineResponseDTO {
     private String societeRaisonSociale;
     private Integer fiscalYear;
     private LocalDate dueDate;
-    private String documentCategory;
+    private Document.TypeDocument documentCategory;
     private Deadline.DeadlineStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

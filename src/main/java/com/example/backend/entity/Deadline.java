@@ -29,8 +29,9 @@ public class Deadline {
     @Column(nullable = false)
     private LocalDate dueDate;
 
-    @Column(nullable = false)
-    private String documentCategory;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_category", nullable = false)
+    private Document.TypeDocument documentCategory;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
