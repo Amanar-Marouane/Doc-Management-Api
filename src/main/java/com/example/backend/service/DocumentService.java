@@ -64,6 +64,15 @@ public class DocumentService implements DocumentServiceContract {
         Societe societe = societeRepository.findById(Long.parseLong(societyId))
                 .orElseThrow(() -> new ResourceNotFoundException("Société", societyId));
 
+        // CLIENT users can only upload to their own societe
+        if (uploadedBy.getRole() == Role.CLIENT) {
+            if (uploadedBy.getClientSociete() == null
+                    || !uploadedBy.getClientSociete().getId().equals(societe.getId())) {
+                throw new BusinessException("FORBIDDEN",
+                        "Un client ne peut déposer des documents que pour sa propre société");
+            }
+        }
+
         // Save file
         String savedFilePath = fileStorageService.save(
                 file,
@@ -97,11 +106,11 @@ public class DocumentService implements DocumentServiceContract {
         }
     }
 
-    public List<DocumentResponseDTO> getDocumentsBySocieteAndExercice(Long accoutantId, Integer exercice) {
-        List<Societe> societes = societeRepository.findByAccountantId(accoutantId);
-        if (societes.isEmpty()) {
-            throw new ResourceNotFoundException("Société", accoutantId.toString());
-        }
+    public List<DocumentResponseDTO> getDocumentsBySocieteAndExercice(Long userId, Integer exercice) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId.toString()));
+
+        List<Societe> societes = getSocietesForUser(user);
 
         List<DocumentResponseDTO> documents = new ArrayList<>();
         societes.forEach(s -> {
@@ -128,7 +137,7 @@ public class DocumentService implements DocumentServiceContract {
     }
 
     @Transactional
-    public DocumentResponseDTO validateDocument(Long documentId, DocumentValidationDTO validation, User admin) {
+    public DocumentResponseDTO validateDocument(Long documentId, DocumentValidationDTO validation, User validator) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", documentId.toString()));
 
@@ -141,8 +150,7 @@ public class DocumentService implements DocumentServiceContract {
         if (validation.getAction() == DocumentValidationDTO.Action.VALIDER) {
             document.setStatut(Document.StatutDocument.VALIDE);
             document.setCommentaireComptable(validation.getCommentaire());
-            // Retention period starts from the year the document is officially validated.
-            // Law N° 9-88: 10 years of mandatory retention.
+            // Retention period: 10 years from validation year (Law N° 9-88)
             document.setRetentionExpiresAt(LocalDate.of(LocalDateTime.now().getYear() + 10, 12, 31));
         } else {
             if (validation.getCommentaire() == null || validation.getCommentaire().trim().isEmpty()) {
@@ -154,14 +162,14 @@ public class DocumentService implements DocumentServiceContract {
         }
 
         document.setDateValidation(LocalDateTime.now());
-        document.setValidatedBy(admin);
+        document.setValidatedBy(validator);
 
         Document updated = documentRepository.save(document);
 
         if (validation.getAction() == DocumentValidationDTO.Action.VALIDER) {
-            auditLogService.logValidation(updated, admin);
+            auditLogService.logValidation(updated, validator);
         } else {
-            auditLogService.logRejection(updated, admin, validation.getCommentaire());
+            auditLogService.logRejection(updated, validator, validation.getCommentaire());
         }
 
         return mapToDTO(updated);
@@ -173,11 +181,11 @@ public class DocumentService implements DocumentServiceContract {
         return mapToDTO(document);
     }
 
-    public List<DocumentResponseDTO> getDocumentsBySociete(Long accoutantId) {
-        List<Societe> societes = societeRepository.findByAccountantId(accoutantId);
-        if (societes.isEmpty()) {
-            throw new ResourceNotFoundException("Société", accoutantId.toString());
-        }
+    public List<DocumentResponseDTO> getDocumentsBySociete(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId.toString()));
+
+        List<Societe> societes = getSocietesForUser(user);
 
         List<DocumentResponseDTO> documents = new ArrayList<>();
         societes.forEach(s -> {
@@ -208,7 +216,8 @@ public class DocumentService implements DocumentServiceContract {
                 break;
 
             case REJETE:
-                // Rejected documents: admin only.
+                // Rejected documents: ADMIN only (CLIENT and COMPTABLE cannot delete rejected
+                // docs).
                 if (deletedBy.getRole() != User.Role.ADMIN) {
                     throw new BusinessException("FORBIDDEN",
                             "Seul un administrateur peut supprimer un document rejeté");
@@ -217,7 +226,6 @@ public class DocumentService implements DocumentServiceContract {
 
             case VALIDE:
                 // Validated documents cannot be soft-deleted at all.
-                // Use the purge endpoint once the document has SUPPRIME status.
                 throw new BusinessException("NOT_DELETABLE",
                         String.format(
                                 "Le document '%s' est validé et ne peut pas être supprimé. "
@@ -258,51 +266,6 @@ public class DocumentService implements DocumentServiceContract {
         documentRepository.delete(document);
     }
 
-    private DocumentResponseDTO mapToDTO(Document document) {
-        LocalDate retentionExpiresAt = document.getRetentionExpiresAt();
-        boolean retentionExpired = LocalDate.now().isAfter(retentionExpiresAt);
-
-        // Soft-delete eligibility (role enforcement is done in deleteDocument):
-        // EN_ATTENTE → anyone can soft-delete
-        // REJETE → admin can soft-delete (no timing constraint)
-        // VALIDE → cannot be soft-deleted; must be purged after retention expires
-        // SUPPRIME → already soft-deleted; only purgeable
-        boolean canBeDeleted = switch (document.getStatut()) {
-            case EN_ATTENTE -> true;
-            case REJETE -> true;
-            case VALIDE, SUPPRIME -> false;
-        };
-
-        // Hard-delete (purge) eligibility: only SUPPRIME documents can be purged (admin
-        // only).
-        boolean canBePurged = document.getStatut() == Document.StatutDocument.SUPPRIME;
-
-        return DocumentResponseDTO.builder()
-                .id(document.getId())
-                .numeroPiece(document.getNumeroPiece())
-                .typeDocument(document.getTypeDocument())
-                .categorieComptable(document.getCategorieComptable())
-                .datePiece(document.getDatePiece())
-                .montant(document.getMontant())
-                .fournisseur(document.getFournisseur())
-                .nomFichierOriginal(document.getNomFichierOriginal())
-                .statut(document.getStatut())
-                .dateValidation(document.getDateValidation())
-                .commentaireComptable(document.getCommentaireComptable())
-                .societeRaisonSociale(document.getSociete().getRaisonSociale())
-                .uploadedByName(document.getUploadedBy().getFullName())
-                .validatedByName(document.getValidatedBy() != null ? document.getValidatedBy().getFullName() : null)
-                .exerciceComptable(document.getExerciceComptable())
-                .createdAt(document.getCreatedAt())
-                .updatedAt(document.getUpdatedAt())
-                .cheminFichier(document.getCheminFichier())
-                .retentionExpiresAt(retentionExpiresAt)
-                .retentionExpired(retentionExpired)
-                .canBeDeleted(canBeDeleted)
-                .canBePurged(canBePurged)
-                .build();
-    }
-
     @Override
     public List<DocumentResponseDTO> getPendingDocumentsForCurrentUser(User user) {
         if (user.getRole() == User.Role.ADMIN) {
@@ -312,6 +275,12 @@ public class DocumentService implements DocumentServiceContract {
                     .collect(Collectors.toList());
         }
 
+        if (user.getRole() == User.Role.CLIENT) {
+            throw new BusinessException("FORBIDDEN",
+                    "Les clients n'ont pas accès à la file d'attente de validation");
+        }
+
+        // COMPTABLE: only their assigned societes
         List<Societe> societes = societeRepository.findByAccountant(user);
         if (societes.isEmpty()) {
             throw new BusinessException("NO_SOCIETE", "L'utilisateur n'est associé à aucune société");
@@ -327,7 +296,7 @@ public class DocumentService implements DocumentServiceContract {
 
     @Override
     public Page<DocumentResponseDTO> getDocumentsBySocietePaginatedFiltered(
-            Long accountantId,
+            Long userId,
             Integer page,
             Integer size,
             String sortBy,
@@ -344,21 +313,28 @@ public class DocumentService implements DocumentServiceContract {
         Sort sort = "asc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        // 2. Fetch User and verify permissions
-        User user = userRepository.findById(accountantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", accountantId.toString()));
+        // 2. Fetch User
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId.toString()));
 
         // 3. Initialize Specification with a base condition (where 1=1)
         Specification<Document> spec = Specification.where((root, query, cb) -> cb.conjunction());
 
         // 4. Role-based Filtering
         if (user.getRole() == Role.COMPTABLE) {
-            List<Societe> societes = societeRepository.findByAccountantId(accountantId);
+            List<Societe> societes = societeRepository.findByAccountantId(userId);
             if (societes.isEmpty()) {
-                throw new ResourceNotFoundException("Société", accountantId.toString());
+                throw new ResourceNotFoundException("Société", userId.toString());
             }
             spec = spec.and((root, query, cb) -> root.get("societe").in(societes));
+        } else if (user.getRole() == Role.CLIENT) {
+            if (user.getClientSociete() == null) {
+                throw new BusinessException("NO_SOCIETE", "Ce client n'est associé à aucune société");
+            }
+            Societe clientSociete = user.getClientSociete();
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("societe"), clientSociete));
         }
+        // ADMIN: no additional filter — sees all documents
 
         // 5. Dynamic Filters
         spec = spec.and(buildFilters(statut, typeDocument, exerciceComptable, numeroPiece, fournisseur, datePieceFrom,
@@ -405,6 +381,30 @@ public class DocumentService implements DocumentServiceContract {
         };
     }
 
+    /**
+     * Returns the list of societes relevant to the given user.
+     * ADMIN → all societes; COMPTABLE → assigned societes; CLIENT → their single
+     * societe.
+     */
+    private List<Societe> getSocietesForUser(User user) {
+        return switch (user.getRole()) {
+            case ADMIN -> societeRepository.findAll();
+            case COMPTABLE -> {
+                List<Societe> s = societeRepository.findByAccountantId(user.getId());
+                if (s.isEmpty()) {
+                    throw new ResourceNotFoundException("Société", user.getId().toString());
+                }
+                yield s;
+            }
+            case CLIENT -> {
+                if (user.getClientSociete() == null) {
+                    throw new BusinessException("NO_SOCIETE", "Ce client n'est associé à aucune société");
+                }
+                yield List.of(user.getClientSociete());
+            }
+        };
+    }
+
     public int countDocumentsBySociete(Long societeId) {
         Societe societe = societeRepository.findById(societeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Société", societeId.toString()));
@@ -415,5 +415,43 @@ public class DocumentService implements DocumentServiceContract {
         Societe societe = societeRepository.findById(societeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Société", societeId.toString()));
         return documentRepository.countBySocieteAndStatut(societe, statut);
+    }
+
+    private DocumentResponseDTO mapToDTO(Document document) {
+        LocalDate retentionExpiresAt = document.getRetentionExpiresAt();
+        boolean retentionExpired = LocalDate.now().isAfter(retentionExpiresAt);
+
+        boolean canBeDeleted = switch (document.getStatut()) {
+            case EN_ATTENTE -> true;
+            case REJETE -> true;
+            case VALIDE, SUPPRIME -> false;
+        };
+
+        boolean canBePurged = document.getStatut() == Document.StatutDocument.SUPPRIME;
+
+        return DocumentResponseDTO.builder()
+                .id(document.getId())
+                .numeroPiece(document.getNumeroPiece())
+                .typeDocument(document.getTypeDocument())
+                .categorieComptable(document.getCategorieComptable())
+                .datePiece(document.getDatePiece())
+                .montant(document.getMontant())
+                .fournisseur(document.getFournisseur())
+                .nomFichierOriginal(document.getNomFichierOriginal())
+                .statut(document.getStatut())
+                .dateValidation(document.getDateValidation())
+                .commentaireComptable(document.getCommentaireComptable())
+                .societeRaisonSociale(document.getSociete().getRaisonSociale())
+                .uploadedByName(document.getUploadedBy().getFullName())
+                .validatedByName(document.getValidatedBy() != null ? document.getValidatedBy().getFullName() : null)
+                .exerciceComptable(document.getExerciceComptable())
+                .createdAt(document.getCreatedAt())
+                .updatedAt(document.getUpdatedAt())
+                .cheminFichier(document.getCheminFichier())
+                .retentionExpiresAt(retentionExpiresAt)
+                .retentionExpired(retentionExpired)
+                .canBeDeleted(canBeDeleted)
+                .canBePurged(canBePurged)
+                .build();
     }
 }

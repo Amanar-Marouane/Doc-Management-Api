@@ -8,6 +8,8 @@ import java.util.List;
 public interface UserServiceContract {
     UserDTO createComptable(CreateComptableDTO request);
 
+    UserDTO createClient(CreateClientDTO request);
+
     List<UserDTO> getAllComptables();
 
     UserDTO getUserById(Long id);

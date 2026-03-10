@@ -44,6 +44,11 @@ public class DocumentController {
     private final DocumentServiceContract documentService;
     private final AuditLogService auditLogService;
 
+    /**
+     * Get all documents for the current user's societes.
+     * ADMIN sees all; COMPTABLE sees assigned societes; CLIENT sees their own
+     * societe.
+     */
     @GetMapping
     public ResponseEntity<Page<DocumentResponseDTO>> getAllMyDocuments(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -78,6 +83,10 @@ public class DocumentController {
         return ResponseEntity.ok(documents);
     }
 
+    /**
+     * Upload a document — any authenticated user.
+     * CLIENT users are restricted to their own societe at the service layer.
+     */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentResponseDTO> uploadDocument(
             @Valid @ModelAttribute DocumentUploadDTO dto,
@@ -90,6 +99,10 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * Get documents filtered by fiscal year.
+     * Role-based filtering is applied at the service layer.
+     */
     @GetMapping("/exercice/{exercice}")
     public ResponseEntity<List<DocumentResponseDTO>> getDocumentsByExercice(
             @PathVariable Integer exercice,
@@ -101,12 +114,14 @@ public class DocumentController {
         return ResponseEntity.ok(documents);
     }
 
+    /** Get document by ID — any authenticated user */
     @GetMapping("/{id}")
     public ResponseEntity<DocumentResponseDTO> getDocument(@PathVariable Long id) {
         DocumentResponseDTO document = documentService.getDocumentById(id);
         return ResponseEntity.ok(document);
     }
 
+    /** Download document file — any authenticated user */
     @GetMapping("/{id}/download")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable Long id) {
         byte[] fileContent = documentService.downloadDocument(id);
@@ -121,7 +136,12 @@ public class DocumentController {
                 .body(fileContent);
     }
 
+    /**
+     * Get the validation queue — ADMIN and COMPTABLE only.
+     * CLIENT users do not have access to this queue.
+     */
     @GetMapping("/pending")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('COMPTABLE')")
     public ResponseEntity<List<DocumentResponseDTO>> getPendingDocuments(
             @AuthenticationPrincipal UserDetails userDetails) {
 
@@ -131,25 +151,26 @@ public class DocumentController {
     }
 
     /**
-     * Validate or reject a document — ADMIN only.
+     * Validate or reject a document — ADMIN and COMPTABLE.
+     * Accountants are the primary validators; ADMIN can also validate.
      */
     @PostMapping("/{id}/validate")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('COMPTABLE')")
     public ResponseEntity<DocumentResponseDTO> validateDocument(
             @PathVariable Long id,
             @Valid @RequestBody DocumentValidationDTO validation,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        User admin = extractUser(userDetails);
-        DocumentResponseDTO response = documentService.validateDocument(id, validation, admin);
+        User validator = extractUser(userDetails);
+        DocumentResponseDTO response = documentService.validateDocument(id, validation, validator);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Get audit trail for a document — ADMIN only.
+     * Get audit trail for a document — ADMIN and COMPTABLE only.
      */
     @GetMapping("/{id}/audit-logs")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('COMPTABLE')")
     public ResponseEntity<List<AuditLogDTO>> getAuditLogs(@PathVariable Long id) {
         List<AuditLogDTO> logs = auditLogService.getAuditLogsForDocument(id);
         return ResponseEntity.ok(logs);
@@ -158,11 +179,10 @@ public class DocumentController {
     /**
      * Soft-delete a document — marks it as SUPPRIME (file is NOT removed).
      * Rules enforced by the service:
-     *   EN_ATTENTE → any authenticated user
-     *   REJETE     → ADMIN only
-     *   VALIDE     → NOT allowed (use purge after document reaches SUPPRIME status)
-     *   SUPPRIME   → error (already deleted)
-     * Returns 204 No Content on success.
+     * EN_ATTENTE → any authenticated user (ADMIN, COMPTABLE, CLIENT)
+     * REJETE → ADMIN only
+     * VALIDE → NOT allowed
+     * SUPPRIME → error (already deleted)
      */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -179,7 +199,6 @@ public class DocumentController {
      * Permanently purge a document — ADMIN only.
      * Requires the document to be in SUPPRIME status.
      * Clears all audit logs, removes the physical file, then deletes the DB record.
-     * Returns 204 No Content on success.
      */
     @DeleteMapping("/{id}/purge")
     @PreAuthorize("hasRole('ADMIN')")

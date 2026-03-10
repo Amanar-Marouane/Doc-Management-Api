@@ -42,18 +42,26 @@ public class User {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    // COMPTABLE users: list of societes assigned to manage
     @OneToMany(mappedBy = "accountant")
     private List<Societe> societes;
 
+    // CLIENT users: the single societe they belong to
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_societe_id", nullable = true)
+    private Societe clientSociete;
+
     public enum Role {
-        COMPTABLE, // Accountant
-        ADMIN
+        COMPTABLE,
+        ADMIN,
+        CLIENT
     }
 
     public Collection<String> getAuthorities() {
         return switch (role) {
             case COMPTABLE -> List.of("ROLE_COMPTABLE");
             case ADMIN -> List.of("ROLE_ADMIN");
+            case CLIENT -> List.of("ROLE_CLIENT");
         };
     }
 }

@@ -4,6 +4,7 @@ import com.example.backend.contract.UserServiceContract;
 import com.example.backend.dto.*;
 import com.example.backend.entity.Societe;
 import com.example.backend.entity.User;
+import com.example.backend.exception.ResourceNotFoundException;
 import com.example.backend.repository.SocieteRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.util.SecurityUtils;
@@ -47,6 +48,31 @@ public class UserService implements UserServiceContract {
                 .fullName(request.getFullName())
                 .role(User.Role.COMPTABLE)
                 .societes(null)
+                .build();
+
+        User saved = userRepository.save(user);
+        return toDTO(saved);
+    }
+
+    @Transactional
+    public UserDTO createClient(CreateClientDTO request) {
+        if (!SecurityUtils.isAdmin()) {
+            throw new RuntimeException("Only admins can create client accounts");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
+
+        Societe societe = societeRepository.findById(request.getSocieteId())
+                .orElseThrow(() -> new ResourceNotFoundException("Société", request.getSocieteId().toString()));
+
+        User user = User.builder()
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .role(User.Role.CLIENT)
+                .clientSociete(societe)
                 .build();
 
         User saved = userRepository.save(user);
@@ -148,7 +174,6 @@ public class UserService implements UserServiceContract {
         for (Societe societe : currentlyAssigned) {
             if (!targetIds.contains(societe.getId())) {
                 societe.setAccountant(null);
-                // Hibernate tracks this change automatically
             }
         }
 
@@ -161,25 +186,18 @@ public class UserService implements UserServiceContract {
             }
 
             for (Societe societe : targetSocietes) {
-                // Safety Check: Ensure the societe isn't already taken by another accountant
                 User currentBoss = societe.getAccountant();
                 if (currentBoss != null && !currentBoss.getId().equals(accountant.getId())) {
                     throw new RuntimeException(
                             "Societe " + societe.getId() + " is already assigned to another accountant");
                 }
-
-                // Assign the new accountant
                 societe.setAccountant(accountant);
             }
 
-            // Sync the relationship on the Java side
             accountant.setSocietes(targetSocietes);
         } else {
             accountant.setSocietes(new ArrayList<>());
         }
-
-        // NOTE: No societeRepository.saveAll(toSave) is needed here.
-        // Hibernate flushes changes automatically because of @Transactional.
     }
 
     @Transactional
@@ -265,7 +283,8 @@ public class UserService implements UserServiceContract {
 
     private UserDTO toDTO(User user) {
         List<SocieteDTO> societeDTOs = null;
-        if (user.getSocietes() != null && !user.getSocietes().isEmpty()) {
+        if (user.getRole() == User.Role.COMPTABLE
+                && user.getSocietes() != null && !user.getSocietes().isEmpty()) {
             societeDTOs = user.getSocietes().stream()
                     .map(s -> SocieteDTO.builder()
                             .id(s.getId())
@@ -279,12 +298,27 @@ public class UserService implements UserServiceContract {
                     .collect(Collectors.toList());
         }
 
+        SocieteDTO clientSocieteDTO = null;
+        if (user.getRole() == User.Role.CLIENT && user.getClientSociete() != null) {
+            Societe s = user.getClientSociete();
+            clientSocieteDTO = SocieteDTO.builder()
+                    .id(s.getId())
+                    .raisonSociale(s.getRaisonSociale())
+                    .ice(s.getIce())
+                    .adresse(s.getAdresse())
+                    .telephone(s.getTelephone())
+                    .emailContact(s.getEmailContact())
+                    .createdAt(s.getCreatedAt())
+                    .build();
+        }
+
         return UserDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .societes(societeDTOs)
+                .clientSociete(clientSocieteDTO)
                 .active(user.isActive())
                 .createdAt(user.getCreatedAt())
                 .build();

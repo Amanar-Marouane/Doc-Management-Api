@@ -348,4 +348,18 @@ public class SocieteService implements SocieteServiceContract {
                 .createdAt(societe.getCreatedAt())
                 .build();
     }
+
+    @Transactional(readOnly = true)
+    public List<SimpleSocieteDTO> getAllSocietesSimple() {
+        if (!SecurityUtils.isAdmin()) {
+            throw new RuntimeException("Only admins can view societes");
+        }
+
+        return societeRepository.findAll().stream()
+                .map(s -> SimpleSocieteDTO.builder()
+                        .id(s.getId())
+                        .raisonSociale(s.getRaisonSociale())
+                        .build())
+                .collect(Collectors.toList());
+    }
 }
