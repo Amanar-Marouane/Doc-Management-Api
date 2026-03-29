@@ -1,0 +1,41 @@
+services:
+  mysql:
+    image: mysql:9
+    container_name: doc-manager-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: doc_manager_db
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password
+    ports:
+      - "33060:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: doc-manager-api
+    restart: on-failure
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/doc_manager_db?allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=app_user
+      - SPRING_DATASOURCE_PASSWORD=app_password
+      - SPRING_PROFILES_ACTIVE=prod
+      - SECURITY_JWT_SECRET_KEY=j4c9uVu6F8YBQFBvVnZXrVmO9OAIODmtDBreFtXNIIC
+      - SECURITY_JWT_EXPIRATION_TIME=3600000
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  mysql_data:

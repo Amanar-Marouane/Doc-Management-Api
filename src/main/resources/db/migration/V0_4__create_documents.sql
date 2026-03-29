@@ -1,0 +1,23 @@
+CREATE TABLE documents (
+    id                   BIGINT PRIMARY KEY AUTO_INCREMENT,
+    numero_piece         VARCHAR(255)  NOT NULL UNIQUE,
+    type_document        VARCHAR(50)   NOT NULL,
+    categorie_comptable  VARCHAR(255)  NOT NULL,
+    date_piece           DATE          NOT NULL,
+    montant             DECIMAL(15,2) NOT NULL,
+    fournisseur         VARCHAR(255),
+    chemin_fichier       VARCHAR(500)  NOT NULL,
+    nom_fichier_original VARCHAR(255)  NOT NULL,
+    statut              VARCHAR(50)   NOT NULL,
+    date_validation      TIMESTAMP,
+    commentaire_comptable VARCHAR(500),
+    societe_id           BIGINT        NOT NULL,
+    uploaded_by_user_id  BIGINT        NOT NULL,
+    validated_by_user_id BIGINT,
+    exercice_comptable   INT           NOT NULL,
+    created_at           TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_document_societe     FOREIGN KEY (societe_id)          REFERENCES societes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_document_uploaded_by FOREIGN KEY (uploaded_by_user_id) REFERENCES users(id)     ON DELETE CASCADE,
+    CONSTRAINT fk_document_validated_by FOREIGN KEY (validated_by_user_id) REFERENCES users(id)     ON DELETE SET NULL
+);
