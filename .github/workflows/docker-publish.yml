@@ -32,5 +32,5 @@ jobs:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            unk07/doc-management/image-management:latest
-            unk07/doc-management/image-management:${{ github.sha }}
+            unk07/doc-management:latest
+            unk07/doc-management:${{ github.sha }}
