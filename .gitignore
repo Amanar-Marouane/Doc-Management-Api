@@ -40,5 +40,8 @@ build/
 ## Uploads ###
 uploads/
 
+### Backups ###
+backups/
+
 ## Scripts ###
 scripts/

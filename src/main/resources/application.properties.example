@@ -4,3 +4,9 @@ server.port=8080
 # JWT (shared)
 security.jwt.secret-key=your_jwt_secret_key_here
 security.jwt.expiration-time=3600000
+
+# Backup Configuration
+app.backup.database.dir=backups/database
+app.backup.files.source=uploads/documents
+app.backup.files.dir=backups/files
+
