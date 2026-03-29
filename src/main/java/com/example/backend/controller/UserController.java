@@ -4,7 +4,6 @@ import com.example.backend.contract.UserServiceContract;
 import com.example.backend.dto.*;
 import com.example.backend.entity.User;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

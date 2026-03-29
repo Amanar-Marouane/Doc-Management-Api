@@ -419,7 +419,7 @@ public class DocumentService implements DocumentServiceContract {
 
     private DocumentResponseDTO mapToDTO(Document document) {
         LocalDate retentionExpiresAt = document.getRetentionExpiresAt();
-        boolean retentionExpired = LocalDate.now().isAfter(retentionExpiresAt);
+        boolean retentionExpired = retentionExpiresAt != null && LocalDate.now().isAfter(retentionExpiresAt);
 
         boolean canBeDeleted = switch (document.getStatut()) {
             case EN_ATTENTE -> true;
