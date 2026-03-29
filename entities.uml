@@ -1,0 +1,137 @@
+@startuml
+
+package "com.example.backend.entity" {
+
+    enum Role {
+        COMPTABLE
+        ADMIN
+        CLIENT
+    }
+
+    enum TypeDocument {
+        FACTURE_ACHAT
+        FACTURE_VENTE
+        TICKET_CAISSE
+        RELEVE_BANCAIRE
+    }
+
+    enum StatutDocument {
+        EN_ATTENTE
+        VALIDE
+        REJETE
+        SUPPRIME
+    }
+
+    enum AuditAction {
+        DOCUMENT_UPLOADED
+        DOCUMENT_VALIDATED
+        DOCUMENT_REJECTED
+        DOCUMENT_DELETED
+    }
+
+    enum DeadlineStatus {
+        UPCOMING
+        COMPLETED
+        OVERDUE
+    }
+
+    class User {
+        + Long id
+        + String email
+        + String password
+        + String fullName
+        + Role role
+        + boolean active
+        + LocalDateTime createdAt
+        --
+        + Collection<String> getAuthorities()
+    }
+
+    class Societe {
+        + Long id
+        + String raisonSociale
+        + String ice
+        + String adresse
+        + String telephone
+        + String emailContact
+        + LocalDateTime createdAt
+    }
+
+    class Document {
+        + Long id
+        + String numeroPiece
+        + TypeDocument typeDocument
+        + String categorieComptable
+        + LocalDate datePiece
+        + BigDecimal montant
+        + String fournisseur
+        + String cheminFichier
+        + String nomFichierOriginal
+        + StatutDocument statut
+        + LocalDateTime dateValidation
+        + String commentaireComptable
+        + Integer exerciceComptable
+        + LocalDate retentionExpiresAt
+        + LocalDateTime createdAt
+        + LocalDateTime updatedAt
+    }
+
+    class AuditLog {
+        + Long id
+        + AuditAction action
+        + LocalDateTime performedAt
+        + String details
+    }
+
+    class Deadline {
+        + Long id
+        + Integer fiscalYear
+        + LocalDate dueDate
+        + TypeDocument documentCategory
+        + DeadlineStatus status
+        + LocalDateTime createdAt
+        + LocalDateTime updatedAt
+    }
+
+    class MissingFileWarning {
+        + Long id
+        + String expectedPath
+        + LocalDateTime detectedAt
+    }
+
+    class ActivityLog {
+        + Long id
+        + String action
+        + String entityType
+        + Long entityId
+        + String username
+        + String description
+        + LocalDateTime createdAt
+    }
+
+    ' Relationships
+    User "1" *-- "0..*" Societe : handles (accountant)
+    User "0..1" -- "1" Societe : belongs to (client)
+    
+    Societe "1" *-- "0..*" Document
+    User "1" -- "0..*" Document : uploads
+    User "0..1" -- "0..*" Document : validates
+    
+    Document "1" *-- "0..*" AuditLog
+    User "1" -- "0..*" AuditLog : performs
+    
+    Societe "1" *-- "0..*" Deadline
+    
+    Document "1" *-- "0..*" MissingFileWarning
+
+    ' Enum Links
+    User -- Role
+    Document -- TypeDocument
+    Document -- StatutDocument
+    AuditLog -- AuditAction
+    Deadline -- DeadlineStatus
+    Deadline -- TypeDocument : uses as category
+
+}
+
+@enduml
