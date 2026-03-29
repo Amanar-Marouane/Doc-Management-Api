@@ -24,6 +24,8 @@ public interface SocieteServiceContract {
     List<SocieteDTO> getSocietiesByAccountant(Long accountantId);
 
     SocietComplianceOverviewDTO getSocietComplianceOverview(Long societeId);
+    
+    byte[] generateCompliancePdfReport(Long societeId);
 
     List<SimpleSocieteDTO> getAllSocietesSimple();
 }

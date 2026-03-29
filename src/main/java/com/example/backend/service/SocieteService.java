@@ -270,6 +270,12 @@ public class SocieteService implements SocieteServiceContract {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public byte[] generateCompliancePdfReport(Long societeId) {
+        SocietComplianceOverviewDTO overview = getSocietComplianceOverview(societeId);
+        return com.example.backend.util.PdfGeneratorUtil.generateComplianceReport(overview);
+    }
+
     /**
      * Returns [total, pending, approved, rejected, deleted, actionable].
      * actionable = total - deleted (used as denominator for compliance %).

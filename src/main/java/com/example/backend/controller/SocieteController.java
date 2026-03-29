@@ -3,7 +3,9 @@ package com.example.backend.controller;
 import com.example.backend.contract.SocieteServiceContract;
 import com.example.backend.dto.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +49,21 @@ public class SocieteController {
     public ResponseEntity<SocietComplianceOverviewDTO> getSocietComplianceOverview(@PathVariable Long id) {
         SocietComplianceOverviewDTO overview = societeService.getSocietComplianceOverview(id);
         return ResponseEntity.ok(overview);
+    }
+
+    /** ADMIN, COMPTABLE, CLIENT — generate PDF compliance report for a societe */
+    @GetMapping("/{id}/compliance/report")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('COMPTABLE') or hasRole('CLIENT')")
+    public ResponseEntity<byte[]> generateCompliancePdfReport(@PathVariable Long id) {
+        byte[] pdfReport = societeService.generateCompliancePdfReport(id);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", "compliance_report_" + id + ".pdf");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(pdfReport);
     }
 
     /** ADMIN only — assign an accountant to a societe */

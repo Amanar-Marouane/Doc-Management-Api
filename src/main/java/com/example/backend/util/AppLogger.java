@@ -20,24 +20,48 @@ public class AppLogger {
         log.info(msg);
     }
 
+    public static void info(String format, Object... args) {
+        log.info(format, args);
+    }
+
     public static void warn(String msg) {
         log.warn(msg);
+    }
+
+    public static void warn(String format, Object... args) {
+        log.warn(format, args);
     }
 
     public static void error(String msg) {
         log.error(msg);
     }
 
+    public static void error(String format, Object... args) {
+        log.error(format, args);
+    }
+
     public static void success(String msg) {
         log.info(msg);
+    }
+
+    public static void success(String format, Object... args) {
+        log.info(format, args);
     }
 
     public static void alert(String msg) {
         log.warn(msg);
     }
 
+    public static void alert(String format, Object... args) {
+        log.warn(format, args);
+    }
+
     public static void debug(String msg) {
         log.debug(msg);
+    }
+
+    public static void debug(String format, Object... args) {
+        log.debug(format, args);
     }
 
     // Fancy header/footer for sections
