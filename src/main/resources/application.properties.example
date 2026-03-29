@@ -10,3 +10,5 @@ app.backup.database.dir=backups/database
 app.backup.files.source=uploads/documents
 app.backup.files.dir=backups/files
 
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html

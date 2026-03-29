@@ -17,7 +17,7 @@ public class BackupScheduler {
     /**
      * Executes a full system backup every day at midnight (00:00:00).
      */
-    @Scheduled(cron = "0 * * * * *")
+    @Scheduled(cron = "0 0 0 * * *")
     public void scheduledFullBackup() {
         AppLogger.info("[BackupScheduler] Triggering scheduled full system backup...");
         

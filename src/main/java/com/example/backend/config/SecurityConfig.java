@@ -55,7 +55,6 @@ public class SecurityConfig {
         LogoutAuthFilter logoutFilter = new LogoutAuthFilter(jwtBlacklistService);
 
         return http
-                .securityMatcher("/api/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(request -> {
                     Routes.open_routes.forEach(pr -> request.requestMatchers(pr).permitAll());
