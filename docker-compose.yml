@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:9
+    image: mysql:8.0
     container_name: doc-manager-db
     restart: always
     environment:
@@ -9,11 +9,11 @@ services:
       MYSQL_USER: app_user
       MYSQL_PASSWORD: app_password
     ports:
-      - "33060:3306"
+      - "33070:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "app_user", "-papp_password"]
       interval: 10s
       timeout: 5s
       retries: 5
